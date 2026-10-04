@@ -32,6 +32,19 @@ def load_to_db(rows, connector_name):
         )
 
 
+def record_error(name, err):
+    if not os.environ.get("DATABASE_URL"):
+        return
+    import psycopg
+
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn, conn.cursor() as cur:
+        cur.execute(
+            "insert into sync_status (connector, last_error) values (%s,%s) "
+            "on conflict (connector) do update set last_error=excluded.last_error",
+            (name, str(err)[:500]),
+        )
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("connector")
@@ -42,7 +55,12 @@ def main():
         sys.exit("Invalid connector name")
     connector = importlib.import_module(f"connectors.{args.connector}").Connector()
     end = date.today()
-    rows = list(connector.fetch(end - timedelta(days=args.days), end))
+    try:
+        rows = list(connector.fetch(end - timedelta(days=args.days), end))
+    except Exception as e:
+        if not args.dry_run:
+            record_error(args.connector, e)
+        raise
     print(f"{connector.name}: {len(rows)} rows")
     if not args.dry_run:
         load_to_db(rows, connector.name)

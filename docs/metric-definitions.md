@@ -9,3 +9,14 @@ Owner: Analytics. Changes go through pull request.
 | conversion_rate | orders / sessions | Draft |
 | ai_citation_share | Share of tracked prompt runs where the brand is cited | Draft |
 | trustpilot_score | Average star rating over the last 90 days | Draft |
+
+## GA4 metrics (source: ga4)
+
+Each row carries a `channel` dimension. AI referrals use `channel = ai_referral` plus an `engine` dimension.
+
+| Metric | GA4 field | Notes |
+|---|---|---|
+| sessions | sessions | |
+| key_events | keyEvents | Whatever each property marks as a key event |
+| transactions | transactions | Ecommerce purchases |
+| revenue | totalRevenue | Differs from ad-platform revenue; do not add the two |
