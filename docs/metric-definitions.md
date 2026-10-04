@@ -20,3 +20,13 @@ Each row carries a `channel` dimension. AI referrals use `channel = ai_referral`
 | key_events | keyEvents | Whatever each property marks as a key event |
 | transactions | transactions | Ecommerce purchases |
 | revenue | totalRevenue | Differs from ad-platform revenue; do not add the two |
+
+## File-based sources
+
+| Source | Metrics | Dimensions |
+|---|---|---|
+| google_ads | ad_spend, clicks, impressions, conversions, revenue | campaign |
+| geo_tracker | geo_prompt_runs, geo_mentions | engine |
+| bot_logs | ai_crawler_hits, ai_crawler_errors | bot (errors also carry status) |
+
+ai_citation_share = geo_mentions / geo_prompt_runs. It counts "brand mentioned", not necessarily linked.
