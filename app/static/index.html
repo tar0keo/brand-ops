@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brand operations</title>
+<style>
+:root{--bg:#f5f6f4;--panel:#fff;--ink:#17202a;--mute:#5d6975;--line:#dfe3e0;--accent:#1c4fd6;--up:#17794a;--dn:#b8362b}
+@media (prefers-color-scheme:dark){:root{--bg:#14181c;--panel:#1b2025;--ink:#e8ecef;--mute:#98a3ad;--line:#2c343b;--accent:#7da2ff;--up:#52c58a;--dn:#ff8a7d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
+main{max-width:1080px;margin:0 auto;padding:24px 20px 56px}
+header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:baseline;margin-bottom:20px}
+h1{font-size:22px;margin:0;font-weight:650;letter-spacing:-.01em}
+.note{color:var(--mute);font-size:13px}
+select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-top:2px solid var(--ink);border-bottom:1px solid var(--line);margin-bottom:24px}
+.strip div{padding:14px 16px 12px 0}
+.strip .n{font-size:28px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.15}
+.strip .l{color:var(--mute);font-size:13px}
+nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
+nav button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:8px 12px;cursor:pointer;white-space:nowrap}
+nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+thead th{font-size:13px;font-weight:500;color:var(--mute)}
+th:first-child{text-align:left;font-weight:600}
+.d{display:block;font-size:12px;font-weight:400}
+.up{color:var(--up)}.dn{color:var(--dn)}.fl{color:var(--mute)}
+.err{padding:16px;border:1px solid var(--dn);border-radius:8px;color:var(--dn);background:var(--panel)}
+.foot{margin-top:12px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><h1>Brand operations</h1><div class="note" id="sub">Loading...</div></div>
+  <label class="note">Period <select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="60">Last 60 days</option></select></label>
+</header>
+<section class="strip" id="strip" aria-label="Portfolio totals"></section>
+<nav role="tablist" id="tabs"></nav>
+<div id="view" role="tabpanel"></div>
+<p class="note foot" id="foot"></p>
+</main>
+<script>
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = {
+  money: v => v == null ? 'n/a' : (v < 0 ? '-' : '') + '$' + (Math.abs(v) >= 1e6 ? (Math.abs(v)/1e6).toFixed(2) + 'M' : Math.abs(v) >= 1e3 ? (Math.abs(v)/1e3).toFixed(1) + 'k' : Math.abs(v).toFixed(0)),
+  x: v => v == null ? 'n/a' : v.toFixed(2),
+  pct: v => v == null ? 'n/a' : (v * 100).toFixed(1) + '%',
+  int: v => v == null ? 'n/a' : Math.round(v).toLocaleString(),
+};
+const C = (label, key, f, dk, good) => ({label, key, f, dk, good});
+const TABS = {
+  scorecard: ['Scorecard', [C('Profit','profit','money','rel'), C('ROAS','roas','x','abs'), C('Conversion','conversion_rate','pct','pt'), C('AI citations','citation_share','pct','pt'), C('Rating','rating','x','abs'), C('Crawler errors','bot_errors','int','rel','down')]],
+  media: ['Media buying', [C('Ad spend','spend','money','rel','none'), C('Revenue','revenue','money','rel'), C('Profit','profit','money','rel'), C('ROAS','roas','x','abs')]],
+  geo: ['GEO and search', [C('AI citations','citation_share','pct','pt'), ...['chatgpt','gemini','perplexity'].map(e => ({label: e[0].toUpperCase()+e.slice(1), f:'pct', get: (b, w) => w === 'current' ? (b.engines[e] ?? null) : null})), C('Visits from AI','ai_sessions','int','rel'), C('Crawler hits','bot_hits','int','rel'), C('Crawler errors','bot_errors','int','rel','down')]],
+  reputation: ['Reputation', [C('Rating','rating','x','abs'), C('Reviews','reviews','int','rel'), C('Negative share','negative_share','pct','pt','down'), C('Reply rate','reply_rate','pct','pt')]],
+  status: ['Data status', null],
+};
+let tab = 'scorecard', data = null, status = null;
+
+function delta(cur, prev, c) {
+  if (cur == null || prev == null) return '';
+  let d = cur - prev, txt;
+  if (c.dk === 'rel') { if (!prev) return ''; d = d / Math.abs(prev); txt = (d >= 0 ? '+' : '') + (d*100).toFixed(0) + '%'; }
+  else if (c.dk === 'pt') txt = (d >= 0 ? '+' : '') + (d*100).toFixed(1) + ' pt';
+  else txt = (d >= 0 ? '+' : '') + d.toFixed(2);
+  const sign = Math.abs(d) < 1e-9 ? 0 : (d > 0 ? 1 : -1) * (c.good === 'down' ? -1 : 1);
+  const cls = c.good === 'none' || sign === 0 ? 'fl' : sign > 0 ? 'up' : 'dn';
+  return `<span class="d ${cls}">${txt}</span>`;
+}
+const val = (c, b, w) => c.get ? c.get(b, w) : b[w][c.key];
+
+function table(cols, brands) {
+  const head = '<tr><th>Brand</th>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+  const body = brands.map(b => '<tr><th scope="row">' + esc(b.name) + '</th>' + cols.map(c => {
+    const cur = val(c, b, 'current'), prev = val(c, b, 'previous');
+    return `<td>${fmt[c.f](cur)}${c.dk ? delta(cur, prev, c) : ''}</td>`;
+  }).join('') + '</tr>').join('');
+  return `<div class="scroll"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+
+function renderStrip() {
+  const p = {name: 'All', current: data.portfolio.current, previous: data.portfolio.previous, engines: {}};
+  const items = TABS.scorecard[1];
+  $('#strip').innerHTML = items.map(c => `<div><div class="n">${fmt[c.f](val(c, p, 'current'))}</div><div class="l">${c.label}${delta(val(c, p, 'current'), val(c, p, 'previous'), c)}</div></div>`).join('');
+}
+
+function renderView() {
+  const v = $('#view');
+  if (tab === 'status') {
+    v.innerHTML = '<div class="scroll"><table><thead><tr><th>Connector</th><th>Last success</th><th>Rows loaded</th><th>Last error</th></tr></thead><tbody>' +
+      (status.length ? status.map(s => `<tr><th scope="row">${esc(s.connector)}</th><td>${s.last_success ? esc(new Date(s.last_success).toLocaleString()) : 'never'}</td><td>${s.rows_loaded ?? 'n/a'}</td><td>${esc(s.last_error || 'none')}</td></tr>`).join('') : '<tr><td colspan="4">No syncs yet. Run a connector, for example: python -m connectors.run example</td></tr>') +
+      '</tbody></table></div>';
+  } else v.innerHTML = table(TABS[tab][1], data.brands);
+  $('#tabs').innerHTML = Object.entries(TABS).map(([k, [name]]) => `<button role="tab" aria-selected="${k === tab}" data-t="${k}">${name}</button>`).join('');
+}
+
+const $ = s => document.querySelector(s);
+async function load() {
+  try {
+    const days = $('#days').value;
+    const [s, st] = await Promise.all([fetch('/api/summary?days=' + days), fetch('/api/status')]);
+    data = await s.json(); status = await st.json();
+    if (data.error) throw new Error(data.error);
+    if (status.error) status = [];
+    $('#sub').textContent = (data.demo ? 'Demo data. ' : '') + `Compared with the previous ${data.days} days, to ${data.end}.`;
+    $('#foot').textContent = 'Profit is ad revenue minus ad spend (provisional until the profit definition is agreed). Revenue is platform-reported.';
+    renderStrip(); renderView();
+  } catch (e) {
+    $('#view').innerHTML = `<div class="err">Could not load data: ${esc(e.message)}. Start the server with "python -m app.server --demo", or set DATABASE_URL.</div>`;
+  }
+}
+$('#tabs').addEventListener('click', e => { const t = e.target.closest('button'); if (t && data) { tab = t.dataset.t; renderView(); } });
+$('#days').addEventListener('change', load);
+load();
+</script>
+</body>
+</html>

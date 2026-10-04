@@ -1,2 +1,13 @@
-The central app (scorecard and modules) goes here. The front-end choice
-(Retool or Metabase over the warehouse first, custom app later) is still open.
+# Central app
+
+Python server (standard library only) plus one static page. No build step.
+
+    python -m app.server --demo        # fake data, no database needed
+    python -m app.server               # reads the warehouse (needs DATABASE_URL)
+
+Open http://127.0.0.1:8000. Views: Scorecard, Media buying, GEO and search, Reputation, Data status.
+Each figure is compared with the previous period of the same length.
+
+- `app/summary.py` turns warehouse rows into per-brand metrics (the tested logic).
+- `app/demo.py` generates deterministic demo rows with built-in stories (Brand 1 declining, Brand 2 crawlers blocked).
+- Profit is provisional: ad revenue minus ad spend. See docs/metric-definitions.md.
