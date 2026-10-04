@@ -1,0 +1,9 @@
+# Add a brand by adding a line here and opening a pull request.
+brands:
+  - {id: fla, name: FLA, kind: brand}
+  - {id: paiio, name: Paiio, kind: brand}
+  - {id: brand_1, name: Brand 1, kind: brand}
+  - {id: brand_2, name: Brand 2, kind: brand}
+  - {id: remarketing, name: Remarketing, kind: remarketing}
+  - {id: whitelabel_a, name: Whitelabel group A, kind: whitelabel}
+  - {id: whitelabel_b, name: Whitelabel group B, kind: whitelabel}
