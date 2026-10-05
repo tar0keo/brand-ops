@@ -150,3 +150,88 @@ def tasklog_record(key, ticket):
     with session() as c:
         c.execute("insert into task_log (task_key, jira_key) values (?,?) "
                   f"on conflict(task_key) do update set jira_key=excluded.jira_key, created_at={NOW}", (key, ticket))
+
+
+# ---------- media releases (links saved from articles and posts) ----------
+MEDIA_SQLITE = """
+create table if not exists media_items (
+  id integer primary key autoincrement, url text not null unique, title text, source text, published text,
+  excerpt text, body text, brand_id text, matches text not null default '[]', status text not null default 'ok',
+  manual integer not null default 0, added_at text not null default (strftime('%Y-%m-%dT%H:%M:%SZ','now')));
+"""
+MEDIA_PG = ("create table if not exists media_items (id bigserial primary key, url text not null unique, title text, "
+            "source text, published text, excerpt text, body text, brand_id text, matches text not null default '[]', "
+            "status text not null default 'ok', manual integer not null default 0, added_at timestamptz not null default now())")
+MEDIA_COLS = "id, url, title, source, published, excerpt, brand_id, matches, status, manual, added_at"
+SCHEMA += MEDIA_SQLITE
+
+
+def _q(sql, params=(), fetch=False):
+    """Run one statement on whichever database is in use (write ? placeholders)."""
+    if is_sqlite():
+        with session() as c:
+            cur = c.execute(sql, params)
+            return cur.fetchall() if fetch else cur.rowcount
+    with _pg() as cur:
+        cur.execute(MEDIA_PG)
+        cur.execute(sql.replace("?", "%s"), params)
+        return cur.fetchall() if fetch else cur.rowcount
+
+
+def _media_row(r):
+    return {"id": r[0], "url": r[1], "title": r[2], "source": r[3], "published": r[4], "excerpt": r[5],
+            "brand_id": r[6] or None, "matches": json.loads(r[7] or "[]"), "status": r[8],
+            "manual": bool(r[9]), "added_at": str(r[10])}
+
+
+def media_list():
+    rows = _q(f"select {MEDIA_COLS} from media_items "
+              "order by coalesce(published, substr(cast(added_at as text), 1, 10)) desc, id desc", fetch=True)
+    return [_media_row(r) for r in rows]
+
+
+def media_exists(url):
+    return bool(_q("select 1 from media_items where url = ?", (url,), fetch=True))
+
+
+def media_add(item):
+    """Insert a link. Returns its id, or None if that link is already saved."""
+    vals = (item["url"], item.get("title"), item.get("source"), item.get("published"), item.get("excerpt"),
+            item.get("body"), item.get("brand_id"), json.dumps(item.get("matches") or []),
+            item.get("status", "ok"), int(bool(item.get("manual"))))
+    q = ("insert into media_items (url, title, source, published, excerpt, body, brand_id, matches, status, manual) "
+         "values (?,?,?,?,?,?,?,?,?,?) on conflict(url) do nothing")
+    if is_sqlite():
+        with session() as c:
+            cur = c.execute(q, vals)
+            return cur.lastrowid if cur.rowcount else None
+    with _pg() as cur:
+        cur.execute(MEDIA_PG)
+        cur.execute(q.replace("?", "%s") + " returning id", vals)
+        row = cur.fetchone()
+        return row[0] if row else None
+
+
+def media_update(item_id, **fields):
+    sets, vals = [], []
+    if "brand_id" in fields:
+        sets.append("brand_id = ?")
+        vals.append(fields["brand_id"])
+    if "matches" in fields:
+        sets.append("matches = ?")
+        vals.append(json.dumps(fields["matches"]))
+    if "manual" in fields:
+        sets.append("manual = ?")
+        vals.append(int(bool(fields["manual"])))
+    if not sets:
+        return False
+    return _q(f"update media_items set {', '.join(sets)} where id = ?", (*vals, item_id)) > 0
+
+
+def media_remove(item_id):
+    return _q("delete from media_items where id = ?", (item_id,)) > 0
+
+
+def media_unassigned():
+    rows = _q("select id, url, title, body from media_items where manual = 0 and (brand_id is null or brand_id = '')", fetch=True)
+    return [{"id": r[0], "url": r[1], "title": r[2] or "", "body": r[3] or ""} for r in rows]

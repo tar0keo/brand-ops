@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import webbrowser
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,10 +14,10 @@ from urllib.parse import parse_qs, urlparse
 
 import yaml
 
-from app import demo, dossier, jira, registry, tasklog
+from app import demo, dossier, jira, media, registry, tasklog
 from app.summary import build_summary
 from app.tasks import generate_tasks
-from connectors import base, store
+from connectors import base, paths, store
 from connectors import run as runner
 from connectors.files import inbox, load_yaml
 
@@ -172,16 +173,71 @@ def sync(name, days):
         raise ValueError(str(e)) from None
 
 
+def open_path(path):
+    """Open a file or folder with the operating system's default app."""
+    if sys.platform == "win32":
+        os.startfile(str(path))
+    else:
+        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(path)])
+
+
 def open_folder():
     if not desktop():
         raise ValueError("Only available in the desktop app")
     path = inbox()
     path.mkdir(parents=True, exist_ok=True)
-    if sys.platform == "win32":
-        os.startfile(path)
-    else:
-        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(path)])
+    open_path(path)
     return {"opened": str(path)}
+
+
+def open_url(url):
+    """Open a saved media link in the default browser (the desktop window cannot open new tabs)."""
+    if not desktop():
+        raise ValueError("Only available in the desktop app")
+    if not media.known_url(url, DEMO):
+        raise ValueError("That link isn't in your list")
+    webbrowser.open(url)
+    return {"opened": url}
+
+
+def export_file(kind, days, category):
+    """Desktop only: save the dossier or the task CSV into the exports folder and open it."""
+    if not desktop():
+        raise ValueError("Only available in the desktop app")
+    if category and category not in {c["id"] for c in registry.category_list()}:
+        raise ValueError("Unknown category")
+    out = paths.home() / "exports"
+    out.mkdir(parents=True, exist_ok=True)
+    stamp = str(date.today()) + (f"-{category}" if category else "")
+    if kind == "dossier":
+        path = out / f"brand-ops-dossier-{stamp}.html"
+        path.write_text(dossier_html(days, category), encoding="utf-8")
+    elif kind == "tasks":
+        tasks, _ = current_tasks(days)
+        if category:
+            tasks = [t for t in tasks if t.get("category") == category]
+        path = out / f"brand-ops-tasks-{stamp}.csv"
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(tasks_csv(tasks))
+    else:
+        raise ValueError("Unknown export")
+    try:
+        open_path(path)
+    except OSError:
+        pass  # the file is saved either way
+    return {"path": str(path)}
+
+
+def media_action(path, body):
+    if path == "/api/media/add":
+        return media.add_links(str(body.get("text", "")), DEMO)
+    if path == "/api/media/assign":
+        return media.assign(int(body.get("id", 0)), body.get("brand_id") or None, DEMO)
+    if path == "/api/media/remove":
+        return media.remove(int(body.get("id", 0)), DEMO)
+    if path == "/api/media/rematch":
+        return media.rematch(DEMO)
+    raise ValueError("Unknown action")
 
 
 def set_demo(on):
@@ -242,6 +298,9 @@ class Handler(BaseHTTPRequestHandler):
                     headers["Content-Disposition"] = f'attachment; filename="brand-ops-dossier-{date.today()}.html"'
                 self._send(200, dossier_html(self._days(url.query), (q.get("category") or [None])[0] or None),
                            "text/html; charset=utf-8", headers)
+            elif url.path == "/api/media":
+                self._json({"items": media.list_items(DEMO), "demo": DEMO,
+                            "brands": [{"id": b["id"], "name": b["name"], "category": b["category"]} for b in registry.active_brands()]})
             elif url.path == "/api/info":
                 self._json(info())
             elif url.path == "/api/status":
@@ -270,6 +329,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"brand": brand_action(url.path, body)})
             if url.path == "/api/sync":
                 return self._json(sync(body.get("connector", ""), max(1, min(730, int(body.get("days", 90))))))
+            if url.path.startswith("/api/media"):
+                return self._json(media_action(url.path, body))
+            if url.path == "/api/open-url":
+                return self._json(open_url(str(body.get("url", ""))))
+            if url.path == "/api/export":
+                days = max(7, min(60, int(body.get("days", 30))))
+                return self._json(export_file(body.get("kind", ""), days, body.get("category") or None))
             if url.path == "/api/open-folder":
                 return self._json(open_folder())
             if url.path == "/api/demo":

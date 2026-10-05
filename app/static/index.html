@@ -10,10 +10,16 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
 main{max-width:1080px;margin:0 auto;padding:24px 20px 56px}
-header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:baseline;margin-bottom:20px}
+header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:20px}
 h1{font-size:22px;margin:0;font-weight:650;letter-spacing:-.01em}
 .note{color:var(--mute);font-size:13px}
-select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+:root{--r:6px;--ctl:34px}
+[hidden]{display:none!important}
+select,input,textarea,.btn{font:inherit;font-size:14px;border-radius:var(--r)}
+select,input,textarea{color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:0 10px;height:var(--ctl)}
+textarea{height:auto;padding:8px 10px;width:100%;max-width:680px;resize:vertical;display:block}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+nav button,.sort{font-size:14px}
 .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-top:2px solid var(--ink);border-bottom:1px solid var(--line);margin-bottom:24px}
 .strip div{padding:14px 16px 12px 0}
 .strip .n{font-size:28px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.15}
@@ -21,7 +27,7 @@ select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
 nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
 nav button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:8px 12px;cursor:pointer;white-space:nowrap}
 nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
-button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+:is(button,select,input,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -37,13 +43,20 @@ th:first-child{text-align:left;font-weight:600}
 .pr{font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid var(--line)}
 .pr.high{color:var(--dn);border-color:var(--dn)}.pr.low{color:var(--mute)}
 .bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:12px}
-.btn{font:inherit;background:var(--accent);color:var(--panel);border:0;border-radius:6px;padding:7px 14px;cursor:pointer}
-.btn:disabled{opacity:.5;cursor:default}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:var(--ctl);padding:0 14px;font-weight:600;line-height:1;white-space:nowrap;cursor:pointer;color:var(--accent);background:transparent;border:1px solid var(--accent)}
+.btn:hover{background:var(--bg)}
+.btn:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.btn.primary{color:var(--panel);background:var(--accent)}
+.btn.primary:hover{filter:brightness(1.12);background:var(--accent)}
+.btn.danger{color:var(--dn);border-color:var(--dn)}
+.btn.danger.armed{color:var(--panel);background:var(--dn)}
+.btn.sm{height:28px;padding:0 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default;pointer-events:none}
+.acts{white-space:nowrap}
 .grp th,.grp td{background:var(--bg);font-weight:650}
 th.ind{padding-left:28px;font-weight:500}
 .sort{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
 a{color:var(--accent)}
-input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
 .chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:1px 4px 1px 10px;margin:0 6px 6px 0;font-size:13px}
 .chip .x{border:0;background:none;color:var(--mute);cursor:pointer;font:inherit}
 form.inline{display:inline-flex;gap:6px}
@@ -53,8 +66,15 @@ form.inline{display:inline-flex;gap:6px}
 <main>
 <header>
   <div><h1>Brand operations</h1><div class="note" id="sub">Loading...</div></div>
-  <label class="note">Category <select id="cat"><option value="">All categories</option></select></label>
-  <label class="note">Period <select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="60">Last 60 days</option></select> <a id="dos" href="/dossier?days=30" target="_blank" rel="noopener">Open dossier</a> <a id="dosd" href="/dossier?days=30&download=1">Download</a> <button id="demo" hidden>Try demo data</button></label>
+  <div><h1>Brand operations</h1><div class="note" id="sub">Loading...</div></div>
+  <div class="tools">
+    <label class="note">Category <select id="cat"><option value="">All categories</option></select></label>
+    <label class="note">Period <select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="60">Last 60 days</option></select></label>
+    <button class="btn" id="dos" data-export="dossier">Open dossier</button>
+    <button class="btn" id="dosd" data-export="dossier-download">Download dossier</button>
+    <button class="btn" id="demo" hidden>Try demo data</button>
+  </div>
+  <div class="note" id="toast" role="status" aria-live="polite"></div>
 </header>
 <section class="strip" id="strip" aria-label="Portfolio totals"></section>
 <nav role="tablist" id="tabs"></nav>
@@ -77,6 +97,7 @@ const TABS = {
   media: ['Media buying', [C('Ad spend','spend','money','rel','none'), C('Revenue','revenue','money','rel'), C('Profit','profit','money','rel'), C('ROAS','roas','x','abs')]],
   geo: ['GEO and search', [C('AI citations','citation_share','pct','pt'), ...['chatgpt','gemini','perplexity'].map(e => ({label: e[0].toUpperCase()+e.slice(1), f:'pct', get: (b, w) => w === 'current' ? (b.engines[e] ?? null) : null})), C('Visits from AI','ai_sessions','int','rel'), C('Crawler hits','bot_hits','int','rel'), C('Crawler errors','bot_errors','int','rel','down')]],
   reputation: ['Reputation', [C('Rating','rating','x','abs'), C('Reviews','reviews','int','rel'), C('Negative share','negative_share','pct','pt','down'), C('Reply rate','reply_rate','pct','pt')]],
+  releases: ['Media releases', null],
   status: ['Data status', null],
 };
 let tab = 'scorecard', data = null, status = null, cat = '', sortCol = null, sortDir = -1;
@@ -95,10 +116,6 @@ const val = (c, b, w) => c.get ? c.get(b, w) : b[w][c.key];
 
 const catLabel = id => ((data && data.categories || []).find(c => c.id === id) || {label: id || 'Uncategorized'}).label;
 const visibleBrands = () => data.brands.filter(b => !cat || b.category === cat);
-function dossierLinks() {
-  const q = '/dossier?days=' + $('#days').value + (cat ? '&category=' + encodeURIComponent(cat) : '');
-  $('#dos').href = q; $('#dosd').href = q + '&download=1';
-}
 const cell = (c, o) => { const cur = val(c, o, 'current'), prev = val(c, o, 'previous'); return `<td>${fmt[c.f](cur)}${c.dk ? delta(cur, prev, c) : ''}</td>`; };
 function table(cols, brands) {
   const head = '<tr><th>Brand</th>' + cols.map((c, i) => `<th><button class="sort" data-sort="${i}">${c.label}${sortCol === i ? (sortDir < 0 ? ' &#9660;' : ' &#9650;') : ''}</button></th>`).join('') + '</tr>';
@@ -126,6 +143,7 @@ async function renderView() {
   const v = $('#view');
   if (tab === 'actions') { await renderActions(); }
   else if (tab === 'brands') { await renderBrands(); }
+  else if (tab === 'releases') { await renderMedia(); }
   else if (tab === 'status') { await renderStatus(); } else v.innerHTML = table(TABS[tab][1], visibleBrands());
   $('#tabs').innerHTML = Object.entries(TABS).map(([k, [name]]) => `<button role="tab" aria-selected="${k === tab}" data-t="${k}">${name}</button>`).join('');
 }
@@ -133,8 +151,8 @@ async function renderView() {
 async function renderBrands(msg) {
   const r = await (await fetch('/api/brands')).json();
   const opt = sel => r.categories.map(c => `<option value="${esc(c.id)}"${c.id === sel ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
-  const rows = r.brands.filter(b => !cat || b.category === cat).map(b => `<tr><th scope="row">${esc(b.name)}<div class="note">${esc(b.id)}${b.active ? '' : ', archived'}</div></th><td><select data-cat="${esc(b.id)}" aria-label="Category for ${esc(b.name)}">${opt(b.category)}</select></td><td>${b.sites.map(x => `<span class="chip">${esc(x)} <button class="x" data-act="rmsite" data-id="${esc(b.id)}" data-d="${esc(x)}" aria-label="Remove ${esc(x)}">x</button></span>`).join('') || '<span class="note">No sites </span>'}<form class="inline" data-id="${esc(b.id)}"><input name="domain" placeholder="example.com" aria-label="Add a site to ${esc(b.name)}"><button>Add site</button></form></td><td><button data-act="${b.active ? 'archive' : 'restore'}" data-id="${esc(b.id)}">${b.active ? 'Archive' : 'Restore'}</button></td></tr>`).join('');
-  $('#view').innerHTML = `<form id="nb" class="bar"><input name="name" placeholder="New brand name" required aria-label="Brand name"><select name="category" aria-label="Category">${opt(r.categories[0].id)}</select><button class="btn">Add brand</button><span class="note" id="msg">${esc(msg || 'Archiving hides a brand but keeps its data. Sites are also used to match Trustpilot reviews to brands.')}</span></form><div class="scroll"><table class="tasks"><thead><tr><th>Brand</th><th>Category</th><th>Sites</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const rows = r.brands.filter(b => !cat || b.category === cat).map(b => `<tr><th scope="row">${esc(b.name)}<div class="note">${esc(b.id)}${b.active ? '' : ', archived'}</div></th><td><select data-cat="${esc(b.id)}" aria-label="Category for ${esc(b.name)}">${opt(b.category)}</select></td><td>${b.sites.map(x => `<span class="chip">${esc(x)} <button class="x" data-act="rmsite" data-id="${esc(b.id)}" data-d="${esc(x)}" aria-label="Remove ${esc(x)}">x</button></span>`).join('') || '<span class="note">No sites </span>'}<form class="inline" data-id="${esc(b.id)}"><input name="domain" placeholder="example.com" aria-label="Add a site to ${esc(b.name)}"><button class="btn sm">Add site</button></form></td><td><button class="btn sm" data-act="${b.active ? 'archive' : 'restore'}" data-id="${esc(b.id)}">${b.active ? 'Archive' : 'Restore'}</button></td></tr>`).join('');
+  $('#view').innerHTML = `<form id="nb" class="bar"><input name="name" placeholder="New brand name" required aria-label="Brand name"><select name="category" aria-label="Category">${opt(r.categories[0].id)}</select><button class="btn primary">Add brand</button><span class="note" id="msg">${esc(msg || 'Archiving hides a brand but keeps its data. Sites are also used to match Trustpilot reviews to brands.')}</span></form><div class="scroll"><table class="tasks"><thead><tr><th>Brand</th><th>Category</th><th>Sites</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 async function saveBrand(path, body) {
   const res = await (await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})).json();
@@ -146,8 +164,8 @@ const when = v => { if (!v) return 'never'; const t = String(v).replace(' ', 'T'
 async function renderStatus(msg) {
   const [info, st] = await Promise.all([fetch('/api/info').then(r => r.json()), fetch('/api/status').then(r => r.json())]);
   const by = Object.fromEntries((st.error ? [] : st).map(x => [x.connector, x]));
-  const rows = info.sources.map(s => { const x = by[s.id] || {}; return `<tr><th scope="row">${esc(s.label)}<div class="note">${esc(s.folder)}</div></th><td>${when(x.last_success)}</td><td>${x.rows_loaded ?? 'n/a'}</td><td>${esc(x.last_error || 'none')}</td><td><button data-imp="${esc(s.id)}"${info.demo ? ' disabled' : ''}>Import now</button></td></tr>`; }).join('');
-  $('#view').innerHTML = `<div class="bar"><span class="note">${esc(info.demo ? 'Demo mode: importing is turned off.' : 'Put exported files in ' + info.inbox + ', in the folder shown under each source.')}</span>${info.desktop ? '<button id="of">Open data folder</button>' : ''}<label class="note">Import window <select id="win"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="365">1 year</option></select></label><span class="note" id="msg">${esc(msg || '')}</span></div><div class="scroll"><table class="tasks"><thead><tr><th>Source</th><th>Last import</th><th>Rows</th><th>Last error</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const rows = info.sources.map(s => { const x = by[s.id] || {}; return `<tr><th scope="row">${esc(s.label)}<div class="note">${esc(s.folder)}</div></th><td>${when(x.last_success)}</td><td>${x.rows_loaded ?? 'n/a'}</td><td>${esc(x.last_error || 'none')}</td><td><button class="btn sm" data-imp="${esc(s.id)}"${info.demo ? ' disabled' : ''}>Import now</button></td></tr>`; }).join('');
+  $('#view').innerHTML = `<div class="bar"><span class="note">${esc(info.demo ? 'Demo mode: importing is turned off.' : 'Put exported files in ' + info.inbox + ', in the folder shown under each source.')}</span>${info.desktop ? '<button class="btn" id="of">Open data folder</button>' : ''}<label class="note">Import window <select id="win"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="365">1 year</option></select></label><span class="note" id="msg">${esc(msg || '')}</span></div><div class="scroll"><table class="tasks"><thead><tr><th>Source</th><th>Last import</th><th>Rows</th><th>Last error</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 async function renderActions() {
   const v = $('#view'), days = $('#days').value;
@@ -158,7 +176,7 @@ async function renderActions() {
   const state = r.jira.configured ? 'Jira is connected.' : r.demo ? 'Demo data: creating tasks is simulated and nothing is sent to Jira.' : 'Jira is not connected. Download the CSV to import, or see docs/jira.md.';
   if (!r.tasks.length) { v.innerHTML = '<p>No actions needed. No brand crossed a threshold in this period.</p>'; return; }
   const rows = r.tasks.map(t => `<tr><td>${t.ticket ? '' : `<input type="checkbox" class="pick" value="${esc(t.key)}" aria-label="Select: ${esc(t.title)}">`}</td><td><span class="pr ${t.priority.toLowerCase()}">${t.priority}</span></td><td><strong>${esc(t.title)}</strong><div class="note">${esc(t.why)}</div><ul>${t.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul></td><td>${esc(t.function)}<div class="note">${esc(catLabel(t.category))}</div></td><td>${t.ticket ? esc(t.ticket) : 'New'}</td></tr>`).join('');
-  v.innerHTML = `<div class="bar"><button class="btn" id="mk">Create selected tasks</button><a href="/api/tasks.csv?days=${days}">Download CSV for Jira import</a><span class="note" id="msg">${state}</span></div><div class="scroll"><table class="tasks"><thead><tr><th>Create</th><th>Priority</th><th>Task</th><th>Owner</th><th>Ticket</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  v.innerHTML = `<div class="bar"><button class="btn primary" id="mk">Create selected tasks</button><button class="btn" data-export="tasks">Export CSV for Jira import</button><span class="note" id="msg">${state}</span></div><div class="scroll"><table class="tasks"><thead><tr><th>Create</th><th>Priority</th><th>Task</th><th>Owner</th><th>Ticket</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   $('#mk').onclick = async () => {
     const keys = [...document.querySelectorAll('.pick:checked')].map(i => i.value);
     if (!keys.length) { $('#msg').textContent = 'Select at least one task.'; return; }
@@ -169,6 +187,42 @@ async function renderActions() {
     await renderActions();
     $('#msg').textContent = (res.results.length - bad.length) + ' created.' + (bad.length ? ' Failed: ' + bad.map(x => x.key + ' (' + x.error + ')').join('; ') : '');
   };
+}
+const postJson = async (path, body) => (await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})).json();
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.textContent = ''; }, 9000); }
+function armed(btn, label, fn) {
+  if (btn.dataset.sure) return fn();
+  btn.dataset.label = btn.dataset.label || btn.textContent; btn.dataset.sure = '1'; btn.textContent = label; btn.classList.add('danger', 'armed');
+  setTimeout(() => { if (btn.isConnected) { delete btn.dataset.sure; btn.textContent = btn.dataset.label; btn.classList.remove('danger', 'armed'); } }, 4000);
+}
+let mediaBrand = '';
+async function renderMedia(msg) {
+  const r = await (await fetch('/api/media')).json();
+  if (r.error) { $('#view').innerHTML = `<div class="err">${esc(r.error)}</div>`; return; }
+  const brandOf = id => r.brands.find(b => b.id === id);
+  const all = r.items.filter(i => !i.brand_id || !cat || (brandOf(i.brand_id) || {}).category === cat);
+  const shown = all.filter(i => !mediaBrand || (mediaBrand === '_none' ? !i.brand_id : i.brand_id === mediaBrand));
+  const opts = sel => '<option value="">Unassigned</option>' + (sel && !brandOf(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)} (archived)</option>` : '') + r.brands.map(b => `<option value="${esc(b.id)}"${b.id === sel ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
+  const filt = `<option value="">All links</option><option value="_none"${mediaBrand === '_none' ? ' selected' : ''}>Unassigned</option>` + r.brands.map(b => `<option value="${esc(b.id)}"${b.id === mediaBrand ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
+  const rows = shown.map(i => {
+    const others = i.matches.filter(m => m.brand_id !== i.brand_id).slice(0, 3).map(m => m.name);
+    const hint = i.brand_id ? (i.manual ? 'Set by you' : 'Matched automatically') + (others.length ? '. Also mentions ' + others.join(', ') : '') : (others.length ? 'Possible: ' + others.join(', ') : 'No brand found');
+    return `<tr><td>${esc(i.published || String(i.added_at).slice(0, 10))}</td><td><select data-mb="${i.id}" aria-label="Brand for ${esc(i.title)}">${opts(i.brand_id)}</select><div class="note">${esc(hint)}</div></td><td><strong>${esc(i.title)}</strong><div class="note">${esc(i.source)}${i.status !== 'ok' ? '. Could not read this page, so it was matched from the link only.' : ''}</div>${i.excerpt ? `<div class="note">${esc(i.excerpt)}</div>` : ''}</td><td class="acts"><button class="btn sm" data-m="open" data-url="${esc(i.url)}">Open</button> <button class="btn sm" data-m="rm" data-id="${i.id}">Remove</button></td></tr>`;
+  }).join('');
+  const list = shown.length ? `<div class="scroll"><table class="tasks"><thead><tr><th>Date</th><th>Brand</th><th>Article or post</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No links to show yet. Paste some above.</p>';
+  $('#view').innerHTML = `<form id="mf"><textarea name="text" rows="3" aria-label="Links to articles or posts" placeholder="Paste links to articles or posts, one per line"></textarea><div class="bar" style="margin-top:10px"><button class="btn primary">Add links</button><button type="button" class="btn" data-m="recheck">Re-check unassigned</button><span class="note" id="msg">${esc(msg || 'Each page is read and matched to the brand it mentions. You can change any match.')}</span></div></form><div class="bar"><label class="note">Show <select id="mbrand">${filt}</select></label><span class="note">${all.length} links, ${all.filter(i => i.brand_id).length} matched to a brand</span></div>${list}`;
+}
+async function addLinks(text) {
+  if (!text.trim()) { await renderMedia('Paste at least one link.'); return; }
+  $('#mf .primary').disabled = true; $('#msg').textContent = 'Reading pages...';
+  const res = await postJson('/api/media/add', {text});
+  if (res.error) { await renderMedia(res.error); return; }
+  const n = k => res.results.filter(x => x.status === k).length, bad = res.results.filter(x => x.status === 'error');
+  await renderMedia(`Added ${n('added')}` + (n('duplicate') ? `, ${n('duplicate')} already saved` : '') + (bad.length ? '. Not added: ' + bad.map(x => x.url + ' (' + x.error + ')').join('; ') : '.') + (res.skipped ? ` ${res.skipped} more links were skipped (the limit is 20 per paste).` : ''));
+}
+async function openUrl(url) {
+  if (data.desktop) { const r = await postJson('/api/open-url', {url}); if (r.error) toast(r.error); } else window.open(url, '_blank', 'noopener');
 }
 const $ = s => document.querySelector(s);
 async function load() {
@@ -181,10 +235,9 @@ async function load() {
     const sel = $('#cat'), keep = sel.value;
     sel.innerHTML = '<option value="">All categories</option>' + data.categories.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
     sel.value = data.categories.some(c => c.id === keep) ? keep : ''; cat = sel.value;
-    dossierLinks();
     const p0 = data.portfolio.current, empty = !data.demo && p0.profit == null && p0.citation_share == null && p0.rating == null;
     $('#sub').textContent = empty ? 'No data yet. Import exported files from Data status, or try the demo data.' : (data.demo ? 'Demo data. ' : '') + `Compared with the previous ${data.days} days, to ${data.end}.`;
-    const db = $('#demo'); db.hidden = !data.desktop; db.textContent = data.demo ? 'Leave demo data' : 'Try demo data';
+    const db = $('#demo'); db.hidden = !data.desktop; $('#dosd').hidden = data.desktop; db.textContent = data.demo ? 'Leave demo data' : 'Try demo data';
     $('#foot').textContent = 'Profit is ad revenue minus ad spend (provisional until the profit definition is agreed). Revenue is platform-reported.';
     renderStrip(); await renderView();
   } catch (e) {
@@ -211,7 +264,7 @@ $('#demo').addEventListener('click', async () => {
   await fetch('/api/demo', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({on: !data.demo})});
   await load();
 });
-$('#cat').addEventListener('change', e => { cat = e.target.value; if (data) { dossierLinks(); renderStrip(); renderView(); } });
+$('#cat').addEventListener('change', e => { cat = e.target.value; if (data) { renderStrip(); renderView(); } });
 $('#view').addEventListener('change', e => {
   const sel = e.target.closest('select[data-cat]');
   if (sel) saveBrand('/api/brands/category', {id: sel.dataset.cat, category: sel.value});
@@ -222,14 +275,39 @@ $('#view').addEventListener('click', e => {
 });
 $('#view').addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, fd = Object.fromEntries(new FormData(f));
-  if (f.id === 'nb') saveBrand('/api/brands', fd); else if (f.dataset.id) saveBrand('/api/brands/site', {id: f.dataset.id, domain: fd.domain});
+  if (f.id === 'mf') addLinks(fd.text); else if (f.id === 'nb') saveBrand('/api/brands', fd); else if (f.dataset.id) saveBrand('/api/brands/site', {id: f.dataset.id, domain: fd.domain});
 });
 $('#view').addEventListener('click', e => {
   const b = e.target.closest('button[data-act]'); if (!b) return;
   const {act: kind, id, d} = b.dataset;
   if (kind === 'rmsite') saveBrand('/api/brands/site/remove', {id, domain: d});
-  else if (kind === 'archive' && confirm('Archive this brand? It disappears from the views, but its data is kept.')) saveBrand('/api/brands/archive', {id, active: false});
+  else if (kind === 'archive') armed(b, 'Click again to archive', () => saveBrand('/api/brands/archive', {id, active: false}));
   else if (kind === 'restore') saveBrand('/api/brands/archive', {id, active: true});
+});
+$('#view').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-m]'); if (!b) return;
+  const k = b.dataset.m;
+  if (k === 'open') await openUrl(b.dataset.url);
+  else if (k === 'rm') armed(b, 'Click again to remove', async () => { const r = await postJson('/api/media/remove', {id: +b.dataset.id}); await renderMedia(r.error || 'Removed.'); });
+  else if (k === 'recheck') { const r = await postJson('/api/media/rematch', {}); await renderMedia(r.error || `Checked again: ${r.updated} newly matched.`); }
+});
+$('#view').addEventListener('change', async e => {
+  const s = e.target.closest('select[data-mb]');
+  if (s) { const r = await postJson('/api/media/assign', {id: +s.dataset.mb, brand_id: s.value || null}); await renderMedia(r.error || 'Saved.'); }
+  else if (e.target.id === 'mbrand') { mediaBrand = e.target.value; await renderMedia(); }
+});
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button[data-export]'); if (!b || !data) return;
+  const kind = b.dataset.export, days = $('#days').value;
+  const dossier = '/dossier?days=' + days + (cat ? '&category=' + encodeURIComponent(cat) : '');
+  if (!data.desktop) {
+    if (kind === 'dossier') window.open(dossier, '_blank', 'noopener');
+    else if (kind === 'dossier-download') location.assign(dossier + '&download=1');
+    else location.assign('/api/tasks.csv?days=' + days);
+    return;
+  }
+  const res = await postJson('/api/export', {kind: kind.startsWith('dossier') ? 'dossier' : 'tasks', days: +days, category: cat || null});
+  toast(res.error ? res.error : 'Saved to ' + res.path + ' and opened.');
 });
 load();
 </script>
