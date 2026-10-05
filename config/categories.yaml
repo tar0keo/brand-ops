@@ -1,0 +1,8 @@
+# Loan types (or levels) used to group brands. Rename, add, or remove entries freely.
+# Keep ids lowercase with no spaces. "uncategorized" is always available and needs no entry.
+categories:
+  - {id: personal, label: Personal loans}
+  - {id: auto, label: Auto loans}
+  - {id: home, label: Home loans}
+  - {id: student, label: Student loans}
+  - {id: business, label: Business loans}

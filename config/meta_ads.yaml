@@ -1,0 +1,14 @@
+# Meta Ads Manager export. Use Breakdown > By time > Day so every row has a date.
+# Column names must match your export exactly; the currency in "Amount spent (USD)" varies by account.
+columns:
+  day: Day
+  campaign: Campaign name
+  cost: Amount spent (USD)
+  clicks: Link clicks
+  impressions: Impressions
+  conversions: Purchases
+  conv_value: Purchases conversion value
+
+# First matching rule wins. Every campaign must match a rule.
+campaign_rules: []
+#  - {contains: "FLA", brand_id: fla}

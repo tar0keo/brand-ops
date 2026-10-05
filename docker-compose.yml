@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: brandops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brandops}
+      POSTGRES_DB: brandops
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./warehouse/migrations:/docker-entrypoint-initdb.d:ro
+volumes:
+  pgdata:

@@ -1,0 +1,11 @@
+# Trustpilot Business review export (CSV). Edit column names to match your file.
+columns:
+  review_id: Review ID
+  date: Review Created (UTC)
+  stars: Review Stars
+  brand_column: Domain URL        # the column used to decide which brand a review belongs to
+  replied: Business Reply Date (UTC)   # optional; blank means no reply
+
+# Matched against the brand_column text. First matching rule wins.
+brand_rules: []
+#  - {contains: "fla-example.com", brand_id: fla}

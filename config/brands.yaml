@@ -1,0 +1,9 @@
+# Assign each brand a category (see config/categories.yaml) from the Brands tab.
+brands:
+  - {id: fla, name: FLA, category: uncategorized}
+  - {id: paiio, name: Paiio, category: uncategorized}
+  - {id: brand_1, name: Brand 1, category: uncategorized}
+  - {id: brand_2, name: Brand 2, category: uncategorized}
+  - {id: remarketing, name: Remarketing, category: uncategorized}
+  - {id: whitelabel_a, name: Whitelabel group A, category: uncategorized}
+  - {id: whitelabel_b, name: Whitelabel group B, category: uncategorized}

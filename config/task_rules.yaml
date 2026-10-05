@@ -1,0 +1,23 @@
+# When a brand crosses one of these lines, the Actions view proposes a task.
+# Ratios are fractions (0.15 = 15%). Tune these with each function owner.
+thresholds:
+  roas_min: 2.0
+  roas_drop_pct: 0.15
+  min_spend: 500            # ignore ROAS when spend in the period is below this
+  conversion_drop_pct: 0.10
+  citation_drop_pts: 0.03   # 3 percentage points
+  crawler_error_rate: 0.15
+  crawler_min_errors: 20
+  rating_min: 4.0
+  rating_drop: 0.2
+  negative_share_max: 0.20
+  reply_rate_min: 0.5
+  min_reviews: 10           # ignore review rules below this volume
+
+cooldown_days: 14           # a task already ticketed within this window is not proposed again
+
+jira:
+  project_key: BRAND        # can be overridden with JIRA_PROJECT_KEY
+  issue_type: Task
+  set_priority: false       # turn on only if the Priority field is on your project's create screen
+  priority_map: {High: High, Medium: Medium, Low: Low}
