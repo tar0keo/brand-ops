@@ -53,6 +53,13 @@ th:first-child{text-align:left;font-weight:600}
 .btn.sm{height:28px;padding:0 10px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:default;pointer-events:none}
 .acts{white-space:nowrap}
+h3{font-size:15px;margin:22px 0 8px}
+h2.sect{font-size:17px;margin:30px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:14px}
+.cols ul{margin:6px 0 0;padding-left:18px}
+.pr{margin-left:4px}
+details.qe{margin:16px 0}
+details.qe summary{cursor:pointer;font-weight:600;margin-bottom:8px}
 .grp th,.grp td{background:var(--bg);font-weight:650}
 th.ind{padding-left:28px;font-weight:500}
 .sort{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
@@ -96,6 +103,7 @@ const TABS = {
   brands: ['Brands', null],
   media: ['Media buying', [C('Ad spend','spend','money','rel','none'), C('Revenue','revenue','money','rel'), C('Profit','profit','money','rel'), C('ROAS','roas','x','abs')]],
   geo: ['GEO and search', [C('AI citations','citation_share','pct','pt'), ...['chatgpt','gemini','perplexity'].map(e => ({label: e[0].toUpperCase()+e.slice(1), f:'pct', get: (b, w) => w === 'current' ? (b.engines[e] ?? null) : null})), C('Visits from AI','ai_sessions','int','rel'), C('Crawler hits','bot_hits','int','rel'), C('Crawler errors','bot_errors','int','rel','down')]],
+  research: ['Market research', null],
   reputation: ['Reputation', [C('Rating','rating','x','abs'), C('Reviews','reviews','int','rel'), C('Negative share','negative_share','pct','pt','down'), C('Reply rate','reply_rate','pct','pt')]],
   releases: ['Media releases', null],
   status: ['Data status', null],
@@ -114,7 +122,7 @@ function delta(cur, prev, c) {
 }
 const val = (c, b, w) => c.get ? c.get(b, w) : b[w][c.key];
 
-const catLabel = id => ((data && data.categories || []).find(c => c.id === id) || {label: id || 'Uncategorized'}).label;
+const catLabel = id => ((data && data.category_options || []).find(c => c.id === id) || {label: id || 'Uncategorized'}).label;
 const visibleBrands = () => data.brands.filter(b => !cat || b.category === cat);
 const cell = (c, o) => { const cur = val(c, o, 'current'), prev = val(c, o, 'previous'); return `<td>${fmt[c.f](cur)}${c.dk ? delta(cur, prev, c) : ''}</td>`; };
 function table(cols, brands) {
@@ -134,7 +142,7 @@ function table(cols, brands) {
   return `<div class="scroll"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
 function renderStrip() {
-  const p = cat ? data.categories.find(c => c.id === cat) : data.portfolio;
+  const p = cat ? (data.categories.find(c => c.id === cat) || {current: {}, previous: {}, engines: {}}) : data.portfolio;
   const items = TABS.scorecard[1];
   $('#strip').innerHTML = items.map(c => `<div><div class="n">${fmt[c.f](val(c, p, 'current'))}</div><div class="l">${c.label}${delta(val(c, p, 'current'), val(c, p, 'previous'), c)}</div></div>`).join('');
 }
@@ -144,6 +152,7 @@ async function renderView() {
   if (tab === 'actions') { await renderActions(); }
   else if (tab === 'brands') { await renderBrands(); }
   else if (tab === 'releases') { await renderMedia(); }
+  else if (tab === 'research') { await renderResearch(); }
   else if (tab === 'status') { await renderStatus(); } else v.innerHTML = table(TABS[tab][1], visibleBrands());
   $('#tabs').innerHTML = Object.entries(TABS).map(([k, [name]]) => `<button role="tab" aria-selected="${k === tab}" data-t="${k}">${name}</button>`).join('');
 }
@@ -152,7 +161,10 @@ async function renderBrands(msg) {
   const r = await (await fetch('/api/brands')).json();
   const opt = sel => r.categories.map(c => `<option value="${esc(c.id)}"${c.id === sel ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
   const rows = r.brands.filter(b => !cat || b.category === cat).map(b => `<tr><th scope="row">${esc(b.name)}<div class="note">${esc(b.id)}${b.active ? '' : ', archived'}</div></th><td><select data-cat="${esc(b.id)}" aria-label="Category for ${esc(b.name)}">${opt(b.category)}</select></td><td>${b.sites.map(x => `<span class="chip">${esc(x)} <button class="x" data-act="rmsite" data-id="${esc(b.id)}" data-d="${esc(x)}" aria-label="Remove ${esc(x)}">x</button></span>`).join('') || '<span class="note">No sites </span>'}<form class="inline" data-id="${esc(b.id)}"><input name="domain" placeholder="example.com" aria-label="Add a site to ${esc(b.name)}"><button class="btn sm">Add site</button></form></td><td><button class="btn sm" data-act="${b.active ? 'archive' : 'restore'}" data-id="${esc(b.id)}">${b.active ? 'Archive' : 'Restore'}</button></td></tr>`).join('');
-  $('#view').innerHTML = `<form id="nb" class="bar"><input name="name" placeholder="New brand name" required aria-label="Brand name"><select name="category" aria-label="Category">${opt(r.categories[0].id)}</select><button class="btn primary">Add brand</button><span class="note" id="msg">${esc(msg || 'Archiving hides a brand but keeps its data. Sites are also used to match Trustpilot reviews to brands.')}</span></form><div class="scroll"><table class="tasks"><thead><tr><th>Brand</th><th>Category</th><th>Sites</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const editable = r.categories.filter(c => c.id !== 'uncategorized'), nIn = id => r.brands.filter(b => b.category === id).length;
+  const catRows = editable.map((c, i) => `<tr><td><form class="inline" data-cat-form="${esc(c.id)}"><input name="label" value="${esc(c.label)}" aria-label="Name of category ${esc(c.id)}"><button class="btn sm">Rename</button></form><div class="note">${esc(c.id)}</div></td><td>${nIn(c.id)}</td><td class="acts"><button class="btn sm" data-c="up" data-id="${esc(c.id)}"${i === 0 ? ' disabled' : ''}>Up</button> <button class="btn sm" data-c="down" data-id="${esc(c.id)}"${i === editable.length - 1 ? ' disabled' : ''}>Down</button> <button class="btn sm" data-c="rm" data-id="${esc(c.id)}">Remove</button></td></tr>`).join('');
+  const catPanel = `<h3>Loan categories</h3><form id="cf" class="bar"><input name="label" placeholder="New category name" required aria-label="New category name"><button class="btn primary">Add category</button><span class="note">Renaming is safe. Removing a category moves its brands to Uncategorized; research data stored under it is kept.</span></form><div class="scroll"><table class="tasks"><thead><tr><th>Category</th><th>Brands</th><th></th></tr></thead><tbody>${catRows}</tbody></table></div><h3>Brands</h3>`;
+  $('#view').innerHTML = `${catPanel}<form id="nb" class="bar"><input name="name" placeholder="New brand name" required aria-label="Brand name"><select name="category" aria-label="Category">${opt(r.categories[0].id)}</select><button class="btn primary">Add brand</button><span class="note" id="msg">${esc(msg || 'Archiving hides a brand but keeps its data. Sites are also used to match Trustpilot reviews to brands.')}</span></form><div class="scroll"><table class="tasks"><thead><tr><th>Brand</th><th>Category</th><th>Sites</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 async function saveBrand(path, body) {
   const res = await (await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})).json();
@@ -224,6 +236,45 @@ async function addLinks(text) {
 async function openUrl(url) {
   if (data.desktop) { const r = await postJson('/api/open-url', {url}); if (r.error) toast(r.error); } else window.open(url, '_blank', 'noopener');
 }
+const pctText = v => v == null ? 'n/a' : Math.round(v * 100) + '%';
+async function researchImport(body) {
+  const res = await postJson('/api/research/import', body);
+  if (res.error) { await renderResearch(res.error); return; }
+  await renderResearch(res.results.map(f => f.error_count ? `${f.file}: nothing imported. ${f.errors.join(' ')}${f.error_count > f.errors.length ? ' (and ' + (f.error_count - f.errors.length) + ' more problems)' : ''}` : `${f.file}: ${f.added} added, ${f.replaced} replaced`).join(' | '));
+}
+async function renderResearch(msg) {
+  const r = await (await fetch('/api/research?days=' + $('#days').value + (cat ? '&category=' + encodeURIComponent(cat) : ''))).json();
+  if (r.error) { $('#view').innerHTML = `<div class="err">${esc(r.error)}</div>`; return; }
+  const bar = `<div class="bar"><input type="file" id="rf" accept=".csv,.json,.jsonl,.ndjson,.txt" multiple hidden><button class="btn primary" data-r="pick">Import files</button><button class="btn" data-r="inbox">Import inbox folder</button><span class="note" id="msg">${esc(msg || 'Import CSV or JSON Lines files of search results. The format is described in docs/research-format.md.')}</span></div>`;
+  if (!cat) {
+    const rows = r.categories.map(c => `<tr><th scope="row">${esc(c.label)}</th><td>${c.runs_gen}</td><td>${c.runs_seo}</td><td>${pctText(c.ours_gen_slots)}</td><td>${pctText(c.ours_seo_slots)}</td><td>${c.missing} of ${c.combos}</td><td><button class="btn sm" data-r="open" data-id="${esc(c.id)}">Open</button></td></tr>`).join('');
+    $('#view').innerHTML = bar + `<p class="note">Each category is researched with a few consumer questions asked of every engine, instead of checking every brand. The shares are the portion of all listed spots held by our brands. Open a category to compare AI answers with SEO results.</p><div class="scroll"><table class="tasks"><thead><tr><th>Category</th><th>AI answers</th><th>SEO lists</th><th>Our share of AI listings</th><th>Our share of SEO listings</th><th>Runs still needed</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  const d = r.detail, s = d.summary, label = id => (r.engines.find(e => e.id === id) || {label: id}).label;
+  const head = `<h3>${esc(catLabel(cat))}</h3><p class="note">Latest answer to each question in this period: ${s.runs_gen} AI answers, ${s.runs_seo} SEO lists. Our brands hold ${pctText(s.ours_gen_slots)} of the listed spots in AI answers and ${pctText(s.ours_seo_slots)} in SEO lists. They appear in ${pctText(s.ours_gen)} of AI answers and ${pctText(s.ours_seo)} of SEO lists.</p>`;
+  const qEditor = `<details class="qe"><summary>Edit the questions for this category</summary><form id="qf"><textarea name="q" rows="5" aria-label="Questions, one per line">${esc(d.questions.filter(q => q.configured).map(q => q.question).join('\n'))}</textarea><div class="bar" style="margin-top:8px"><button class="btn primary">Save questions</button><span class="note">One per line, worded the way a customer would ask. Up to 20.</span></div></form></details>`;
+  if (!s.runs_gen && !s.runs_seo) {
+    $('#view').innerHTML = bar + head + `<p>No results imported for this period yet. ${d.questions.length ? 'Questions to ask, in every engine:' : 'No questions yet for this category.'}</p>${d.questions.length ? '<ul>' + d.questions.map(q => `<li>${esc(q.question)}</li>`).join('') + '</ul>' : ''}${qEditor}`;
+    return;
+  }
+  const cellFor = (st, n) => st.count ? `${pctText(st.rate)}<div class="note">avg #${st.avg_rank} (${st.count} of ${n})</div>` : '<span class="note">Not listed</span>';
+  const rows = d.table.map(t => `<tr><td><strong>${esc(t.name)}</strong>${t.ours ? ' <span class="pr">ours</span>' : ''}${Object.keys(t.by_engine).length ? `<div class="note">${Object.entries(t.by_engine).map(([e, v]) => esc(label(e)) + ' #' + v).join(', ')}</div>` : ''}</td><td>${cellFor(t.gen, s.runs_gen)}</td><td>${cellFor(t.seo, s.runs_seo)}</td><td>${t.gap == null ? 'n/a' : `<span class="${t.gap > 0 ? 'up' : t.gap < 0 ? 'dn' : 'fl'}">${t.gap > 0 ? '+' : ''}${Math.round(t.gap * 100)} pts</span>`}</td></tr>`).join('');
+  const list = (title, items, key) => `<div><strong>${title}</strong>${items.length ? '<ul>' + items.map(i => `<li>${esc(i.name)}${i.ours ? ' (ours)' : ''}: ${pctText(i[key])}</li>`).join('') + '</ul>' : '<p class="note">None.</p>'}</div>`;
+  const qs = d.questions.map(q => `<h3>${esc(q.question)}</h3><div class="scroll"><table class="tasks"><thead><tr><th>Engine</th><th>Run date</th><th>Our brands listed</th><th>Top 3 listed</th><th>Overlap with SEO</th></tr></thead><tbody>${r.engines.map(e => { const v = q.engines[e.id]; return v ? `<tr><th scope="row">${esc(e.label)}</th><td>${esc(v.date)}</td><td>${v.ours.length ? v.ours.map(o => esc(o.name) + ' #' + o.rank).join(', ') : '<span class="note">None listed</span>'}</td><td>${v.top.map(esc).join(', ')}</td><td>${v.overlap == null ? '' : pctText(v.overlap)}</td></tr>` : `<tr><th scope="row">${esc(e.label)}</th><td colspan="4"><span class="note">No run in this period</span></td></tr>`; }).join('')}</tbody></table></div>`).join('');
+  const src = d.sources.length ? `<h3>Most cited sources</h3><p class="note">Sites the AI answers pointed to.</p><div class="scroll"><table class="tasks"><thead><tr><th>Site</th><th>Answers citing it</th></tr></thead><tbody>${d.sources.map(x => `<tr><th scope="row">${esc(x.domain)}${x.ours ? ' <span class="pr">ours</span>' : ''}</th><td>${x.count}</td></tr>`).join('')}</tbody></table></div>` : '';
+  $('#view').innerHTML = bar + head + `<h3>Who gets recommended</h3><div class="scroll"><table class="tasks"><thead><tr><th>Company</th><th>In AI answers</th><th>In SEO results</th><th>AI minus SEO</th></tr></thead><tbody>${rows}</tbody></table></div><div class="cols">${list('In AI answers but not in SEO results', d.ai_not_seo, 'ai_rate')}${list('In SEO results but missing from AI answers', d.seo_not_ai, 'seo_rate')}</div>` + src + '<h2 class="sect">By question</h2>' + qs + qEditor;
+}
+async function saveCategory(path, body) {
+  const res = await postJson(path, body);
+  if (res.error) { await renderBrands(res.error); return; }
+  await load();
+  const m = $('#msg'); if (m) m.textContent = res.brands_moved ? `Removed. ${res.brands_moved} brands moved to Uncategorized.` : 'Saved.';
+}
+async function saveQuestions(text) {
+  const res = await postJson('/api/research/questions', {category: cat, questions: text.split('\n')});
+  await renderResearch(res.error || 'Questions saved.');
+}
 const $ = s => document.querySelector(s);
 async function load() {
   try {
@@ -233,8 +284,8 @@ async function load() {
     if (data.error) throw new Error(data.error);
     if (status.error) status = [];
     const sel = $('#cat'), keep = sel.value;
-    sel.innerHTML = '<option value="">All categories</option>' + data.categories.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
-    sel.value = data.categories.some(c => c.id === keep) ? keep : ''; cat = sel.value;
+    sel.innerHTML = '<option value="">All categories</option>' + data.category_options.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
+    sel.value = data.category_options.some(c => c.id === keep) ? keep : ''; cat = sel.value;
     const p0 = data.portfolio.current, empty = !data.demo && p0.profit == null && p0.citation_share == null && p0.rating == null;
     $('#sub').textContent = empty ? 'No data yet. Import exported files from Data status, or try the demo data.' : (data.demo ? 'Demo data. ' : '') + `Compared with the previous ${data.days} days, to ${data.end}.`;
     const db = $('#demo'); db.hidden = !data.desktop; $('#dosd').hidden = data.desktop; db.textContent = data.demo ? 'Leave demo data' : 'Try demo data';
@@ -275,7 +326,7 @@ $('#view').addEventListener('click', e => {
 });
 $('#view').addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, fd = Object.fromEntries(new FormData(f));
-  if (f.id === 'mf') addLinks(fd.text); else if (f.id === 'nb') saveBrand('/api/brands', fd); else if (f.dataset.id) saveBrand('/api/brands/site', {id: f.dataset.id, domain: fd.domain});
+  if (f.id === 'cf') saveCategory('/api/categories/add', fd); else if (f.dataset.catForm) saveCategory('/api/categories/rename', {id: f.dataset.catForm, label: fd.label}); else if (f.id === 'qf') saveQuestions(fd.q); else if (f.id === 'mf') addLinks(fd.text); else if (f.id === 'nb') saveBrand('/api/brands', fd); else if (f.dataset.id) saveBrand('/api/brands/site', {id: f.dataset.id, domain: fd.domain});
 });
 $('#view').addEventListener('click', e => {
   const b = e.target.closest('button[data-act]'); if (!b) return;
@@ -300,6 +351,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('button[data-export]'); if (!b || !data) return;
   const kind = b.dataset.export, days = $('#days').value;
   const dossier = '/dossier?days=' + days + (cat ? '&category=' + encodeURIComponent(cat) : '');
+  if (kind.startsWith('dossier') && cat && !data.categories.some(c => c.id === cat)) { toast('Add a brand to this category first.'); return; }
   if (!data.desktop) {
     if (kind === 'dossier') window.open(dossier, '_blank', 'noopener');
     else if (kind === 'dossier-download') location.assign(dossier + '&download=1');
@@ -308,6 +360,24 @@ document.addEventListener('click', async e => {
   }
   const res = await postJson('/api/export', {kind: kind.startsWith('dossier') ? 'dossier' : 'tasks', days: +days, category: cat || null});
   toast(res.error ? res.error : 'Saved to ' + res.path + ' and opened.');
+});
+$('#view').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-r]'); if (!b) return;
+  const k = b.dataset.r;
+  if (k === 'pick') $('#rf').click();
+  else if (k === 'inbox') await researchImport({inbox: true});
+  else if (k === 'open') { $('#cat').value = b.dataset.id; cat = b.dataset.id; renderStrip(); await renderView(); }
+});
+$('#view').addEventListener('change', async e => {
+  if (e.target.id !== 'rf') return;
+  const files = [...e.target.files];
+  await researchImport({files: await Promise.all(files.map(async f => ({name: f.name, text: await f.text()})))});
+});
+$('#view').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-c]'); if (!b) return;
+  const id = b.dataset.id;
+  if (b.dataset.c === 'rm') armed(b, 'Click again to remove', () => saveCategory('/api/categories/remove', {id}));
+  else await saveCategory('/api/categories/move', {id, direction: b.dataset.c});
 });
 load();
 </script>

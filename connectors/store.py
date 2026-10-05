@@ -174,6 +174,7 @@ def _q(sql, params=(), fetch=False):
             return cur.fetchall() if fetch else cur.rowcount
     with _pg() as cur:
         cur.execute(MEDIA_PG)
+        cur.execute(RESEARCH_PG)
         cur.execute(sql.replace("?", "%s"), params)
         return cur.fetchall() if fetch else cur.rowcount
 
@@ -235,3 +236,38 @@ def media_remove(item_id):
 def media_unassigned():
     rows = _q("select id, url, title, body from media_items where manual = 0 and (brand_id is null or brand_id = '')", fetch=True)
     return [{"id": r[0], "url": r[1], "title": r[2] or "", "body": r[3] or ""} for r in rows]
+
+
+# ---------- market research runs (answers to consumer questions, per engine) ----------
+RESEARCH_SQLITE = """
+create table if not exists research_runs (
+  id integer primary key autoincrement, run_date text not null, category text not null, question text not null,
+  engine text not null, model text not null default '', location text not null default '', answer text,
+  citations text not null default '[]', results text not null default '[]',
+  imported_at text not null default (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  unique (run_date, category, question, engine, model, location));
+"""
+RESEARCH_PG = ("create table if not exists research_runs (id bigserial primary key, run_date text not null, category text not null, "
+               "question text not null, engine text not null, model text not null default '', location text not null default '', "
+               "answer text, citations text not null default '[]', results text not null default '[]', "
+               "imported_at timestamptz not null default now(), unique (run_date, category, question, engine, model, location))")
+SCHEMA += RESEARCH_SQLITE
+
+
+def research_save_run(run):
+    """Insert a run, or replace the same run imported again. Returns 'added' or 'replaced'."""
+    key = (run["date"], run["category"], run["question"], run["engine"], run.get("model") or "", run.get("location") or "")
+    exists = bool(_q("select 1 from research_runs where run_date=? and category=? and question=? and engine=? "
+                     "and model=? and location=?", key, fetch=True))
+    _q("insert into research_runs (run_date, category, question, engine, model, location, answer, citations, results) "
+       "values (?,?,?,?,?,?,?,?,?) on conflict(run_date, category, question, engine, model, location) "
+       "do update set answer=excluded.answer, citations=excluded.citations, results=excluded.results",
+       (*key, run.get("answer") or "", json.dumps(run.get("citations") or []), json.dumps(run["results"])))
+    return "replaced" if exists else "added"
+
+
+def research_runs(since):
+    rows = _q("select run_date, category, question, engine, model, location, citations, results from research_runs "
+              "where run_date >= ? order by run_date, id", (since,), fetch=True)
+    return [{"run_date": date.fromisoformat(str(r[0])), "category": r[1], "question": r[2], "engine": r[3], "model": r[4],
+             "location": r[5], "citations": json.loads(r[6] or "[]"), "results": json.loads(r[7] or "[]")} for r in rows]

@@ -2,7 +2,7 @@
 
 ## Categories
 
-Brands are grouped by loan type (or level). The list lives in `config/categories.yaml`; rename, add, or remove entries there. A brand with no valid category shows under "Uncategorized". Change a brand's category from the Brands tab.
+Brands are grouped by loan type (or level). Edit the list on the Brands tab, under Loan categories: add a category, rename it, reorder it with Up and Down, or remove it. Renaming is always safe, because the id stays the same. Removing a category moves its brands to Uncategorized, and research data stored under it is kept. The list is saved in `config/categories.yaml`, which you can also edit by hand. A brand with no valid category shows under "Uncategorized". Change a brand's category from the Brands tab.
 
 The category selector in the header filters the summary at the top and every tab. With "All categories", each table is grouped by category: the group row shows that category's totals and the brands sit beneath it. Click a column heading to sort the brands within each group; click again to reverse.
 

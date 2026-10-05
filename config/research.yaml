@@ -1,0 +1,33 @@
+# Market research: consumer-style questions asked once per loan category (not once per brand).
+# Engines marked "seo" are the baseline the AI answers are compared with (for example, the Google results list).
+engines:
+  chatgpt: {label: ChatGPT, kind: generative}
+  gemini: {label: Gemini, kind: generative}
+  perplexity: {label: Perplexity, kind: generative}
+  claude: {label: Claude, kind: generative}
+  google_ai_overview: {label: Google AI Overviews, kind: generative}
+  google_organic: {label: Google search (SEO), kind: seo}
+
+# Keys are category ids from config/categories.yaml. Edit freely; ask each question the way a customer would.
+questions:
+  personal:
+    - "What are the 10 best personal loan companies?"
+    - "Which lenders offer personal loans for people with bad credit?"
+    - "Where can I get a personal loan with the lowest rates?"
+    - "What is the fastest way to get a personal loan online?"
+  auto:
+    - "What are the 10 best auto loan lenders?"
+    - "Where can I refinance my car loan?"
+    - "Which lenders offer car loans for bad credit?"
+  home:
+    - "What are the 10 best mortgage lenders?"
+    - "Who offers the lowest mortgage rates right now?"
+    - "Which lenders are best for first-time home buyers?"
+  student:
+    - "What are the best companies to refinance student loans?"
+    - "Which private student loan lenders are the best?"
+    - "Where can I get a student loan with no cosigner?"
+  business:
+    - "What are the 10 best small business loan lenders?"
+    - "Where can a new business get a startup loan?"
+    - "Which lenders offer fast business loans online?"

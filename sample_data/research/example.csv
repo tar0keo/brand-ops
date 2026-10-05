@@ -1,0 +1,6 @@
+date,category,question,engine,rank,name,url,note
+2026-10-05,auto,What are the 10 best auto loan lenders?,chatgpt,1,Acme Lending,https://www.acme-lending.example.com,
+2026-10-05,auto,What are the 10 best auto loan lenders?,chatgpt,2,Brand 7,https://www.brand7.example.com,
+2026-10-05,auto,What are the 10 best auto loan lenders?,chatgpt,3,Harbor Finance,,name only is fine
+2026-10-05,auto,What are the 10 best auto loan lenders?,google_organic,1,Brand 7,https://www.brand7.example.com/auto,
+2026-10-05,auto,What are the 10 best auto loan lenders?,google_organic,2,Acme Lending,https://www.acme-lending.example.com,

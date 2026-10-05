@@ -15,7 +15,14 @@ _LOCK = threading.Lock()
 
 
 def categories():
-    return list(load_yaml("categories.yaml")["categories"])
+    with open(base.CATEGORIES_PATH) as f:
+        return list(yaml.safe_load(f)["categories"])
+
+
+def category_options():
+    """Every configured category, plus Uncategorized when some brand is in it (for the category pickers)."""
+    used = {b["category"] for b in active_brands()}
+    return categories() + ([UNCATEGORIZED] if "uncategorized" in used else [])
 
 
 def category_list():
@@ -132,3 +139,80 @@ def remove_site(brand_id, domain):
         b["sites"].remove(d)
         _save(brands)
         return b
+
+
+# ---------- editing the list of categories ----------
+CATEGORY_HEADER = ("# Loan categories (or levels). Managed from the app's Brands tab or by hand.\n"
+                   "# Rename freely. Keep ids lowercase with no spaces: brands and research data refer to them.\n")
+
+
+def _save_categories(cats):
+    text = CATEGORY_HEADER + yaml.safe_dump({"categories": cats}, sort_keys=False, allow_unicode=True)
+    tmp = f"{base.CATEGORIES_PATH}.tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.replace(tmp, base.CATEGORIES_PATH)
+
+
+def _clean_label(label, others):
+    label = re.sub(r"\s+", " ", label or "").strip()
+    if not label:
+        raise ValueError("Name is required")
+    if len(label) > 40:
+        raise ValueError("Keep category names to 40 characters or fewer")
+    if label.lower() == "uncategorized" or label.lower() in {c["label"].lower() for c in others}:
+        raise ValueError("A category with that name already exists")
+    return label
+
+
+def _find_category(cats, cat_id):
+    for c in cats:
+        if c["id"] == cat_id:
+            return c
+    raise ValueError(f"Unknown category: {cat_id!r}")
+
+
+def add_category(label, cat_id=None):
+    with _LOCK:
+        cats = categories()
+        label = _clean_label(label, cats)
+        cid = cat_id or slug(label)
+        if not ID.match(cid) or cid == "uncategorized":
+            raise ValueError("Id must be 2 to 31 characters: lowercase letters, numbers, underscores, starting with a letter")
+        if any(c["id"] == cid for c in cats):
+            raise ValueError(f"A category with id {cid!r} already exists")
+        cats.append({"id": cid, "label": label})
+        _save_categories(cats)
+        return cats[-1]
+
+
+def rename_category(cat_id, label):
+    with _LOCK:
+        cats = categories()
+        c = _find_category(cats, cat_id)
+        c["label"] = _clean_label(label, [x for x in cats if x is not c])
+        _save_categories(cats)
+        return c
+
+
+def move_category(cat_id, direction):
+    if direction not in ("up", "down"):
+        raise ValueError("Direction must be up or down")
+    with _LOCK:
+        cats = categories()
+        i = cats.index(_find_category(cats, cat_id))
+        j = i - 1 if direction == "up" else i + 1
+        if 0 <= j < len(cats):
+            cats[i], cats[j] = cats[j], cats[i]
+            _save_categories(cats)
+        return cats
+
+
+def remove_category(cat_id):
+    """Remove a category. Its brands fall back to Uncategorized; research data stored under it is kept."""
+    with _LOCK:
+        cats = categories()
+        gone = _find_category(cats, cat_id)
+        moved = sum(1 for b in all_brands() if b["category"] == cat_id)
+        _save_categories([c for c in cats if c is not gone])
+        return {"removed": gone, "brands_moved": moved}

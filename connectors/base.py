@@ -8,6 +8,8 @@ import yaml
 _HOME = os.environ.get("BRANDOPS_HOME")  # set by the desktop app: all user data lives in one folder
 CONFIG = Path(_HOME) / "config" if _HOME else Path(__file__).resolve().parent.parent / "config"
 BRANDS_PATH = CONFIG / "brands.yaml"
+CATEGORIES_PATH = CONFIG / "categories.yaml"
+RESEARCH_PATH = CONFIG / "research.yaml"
 
 
 @dataclass

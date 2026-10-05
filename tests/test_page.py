@@ -19,3 +19,11 @@ def test_buttons_share_one_style_system():
 
 def test_media_tab_is_present():
     assert "releases: ['Media releases', null]" in PAGE and "renderMedia" in PAGE
+
+
+def test_market_research_tab_is_present():
+    assert "research: ['Market research', null]" in PAGE and "renderResearch" in PAGE
+
+
+def test_category_editor_is_present():
+    assert "Loan categories" in PAGE and "/api/categories/add" in PAGE and "Edit the questions for this category" in PAGE

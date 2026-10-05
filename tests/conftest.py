@@ -8,7 +8,8 @@ from connectors import base
 
 @pytest.fixture
 def demo_mode(monkeypatch):
-    monkeypatch.setattr(base, "BRANDS_PATH", base.BRANDS_PATH)  # restored after the test
+    for attr in ("BRANDS_PATH", "CATEGORIES_PATH", "RESEARCH_PATH"):
+        monkeypatch.setattr(base, attr, getattr(base, attr))  # restored after the test
     tasklog._MEM.clear()
     server.enable_demo()
     yield

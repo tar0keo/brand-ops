@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,7 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 import yaml
 
-from app import demo, dossier, jira, media, registry, tasklog
+from app import demo, dossier, jira, media, registry, research, tasklog
 from app.summary import build_summary
 from app.tasks import generate_tasks
 from connectors import base, paths, store
@@ -25,26 +26,44 @@ STATIC = Path(__file__).parent / "static"
 DEMO = False
 
 
-_REAL_BRANDS = None
+_REAL_CONFIG = None
 
 
 def enable_demo():
-    """Demo mode runs on its own sample brands in a temp file, so your real brands.yaml is never touched."""
-    global DEMO, _REAL_BRANDS
+    """Demo mode runs on its own sample brands, categories, and questions in temp files, so your real config is never touched."""
+    global DEMO, _REAL_CONFIG
     if DEMO:
         return
-    _REAL_BRANDS = base.BRANDS_PATH
-    path = Path(tempfile.mkdtemp(prefix="brandops-demo-")) / "brands.yaml"
-    path.write_text(yaml.safe_dump({"brands": demo.sample_brands()}, sort_keys=False))
-    base.BRANDS_PATH = path
+    _REAL_CONFIG = (base.BRANDS_PATH, base.CATEGORIES_PATH, base.RESEARCH_PATH)
+    folder = Path(tempfile.mkdtemp(prefix="brandops-demo-"))
+    shutil.copy(base.CATEGORIES_PATH, folder / "categories.yaml")
+    shutil.copy(base.RESEARCH_PATH, folder / "research.yaml")
+    base.CATEGORIES_PATH, base.RESEARCH_PATH = folder / "categories.yaml", folder / "research.yaml"
+    (folder / "brands.yaml").write_text(yaml.safe_dump({"brands": demo.sample_brands()}, sort_keys=False))
+    base.BRANDS_PATH = folder / "brands.yaml"
     DEMO = True
 
 
 def disable_demo():
     global DEMO
-    if DEMO and _REAL_BRANDS is not None:
-        base.BRANDS_PATH = _REAL_BRANDS
+    if DEMO and _REAL_CONFIG is not None:
+        base.BRANDS_PATH, base.CATEGORIES_PATH, base.RESEARCH_PATH = _REAL_CONFIG
     DEMO = False
+
+
+def category_action(path, body):
+    extra = {}
+    if path == "/api/categories/add":
+        registry.add_category(body.get("label", ""), body.get("id") or None)
+    elif path == "/api/categories/rename":
+        registry.rename_category(body.get("id", ""), body.get("label", ""))
+    elif path == "/api/categories/move":
+        registry.move_category(body.get("id", ""), body.get("direction", ""))
+    elif path == "/api/categories/remove":
+        extra = {"brands_moved": registry.remove_category(body.get("id", ""))["brands_moved"]}
+    else:
+        raise ValueError("Unknown action")
+    return {"categories": registry.category_list(), **extra}
 
 
 def fetch_rows(start, end):
@@ -288,6 +307,7 @@ class Handler(BaseHTTPRequestHandler):
                 payload = get_summary(self._days(url.query))
                 payload["demo"] = DEMO
                 payload["desktop"] = desktop()
+                payload["category_options"] = registry.category_options()
                 self._json(payload)
             elif url.path == "/api/brands":
                 self._json({"brands": registry.all_brands(), "categories": registry.category_list()})
@@ -301,6 +321,11 @@ class Handler(BaseHTTPRequestHandler):
             elif url.path == "/api/media":
                 self._json({"items": media.list_items(DEMO), "demo": DEMO,
                             "brands": [{"id": b["id"], "name": b["name"], "category": b["category"]} for b in registry.active_brands()]})
+            elif url.path == "/api/research":
+                q = parse_qs(url.query)
+                payload = research.report(self._days(url.query), (q.get("category") or [None])[0] or None, DEMO)
+                payload["demo"] = DEMO
+                self._json(payload)
             elif url.path == "/api/info":
                 self._json(info())
             elif url.path == "/api/status":
@@ -329,6 +354,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"brand": brand_action(url.path, body)})
             if url.path == "/api/sync":
                 return self._json(sync(body.get("connector", ""), max(1, min(730, int(body.get("days", 90))))))
+            if url.path.startswith("/api/categories"):
+                return self._json(category_action(url.path, body))
+            if url.path == "/api/research/questions":
+                return self._json(research.set_questions(str(body.get("category", "")), body.get("questions")))
+            if url.path == "/api/research/import":
+                return self._json(research.import_request(body, DEMO))
             if url.path.startswith("/api/media"):
                 return self._json(media_action(url.path, body))
             if url.path == "/api/open-url":
