@@ -25,7 +25,7 @@ Open Data status, drop exports into the folders shown, and click Import now for 
 
 ## Build installers
 
-Push the repo to GitHub, open Actions, choose build-desktop, and click Run workflow. When it finishes, download the Windows and macOS zips from the run's artifacts. To build on your own machine: `pip install -r requirements-desktop.txt` then `pyinstaller brandops.spec --noconfirm`.
+Push the repo to GitHub, open Actions, choose build-desktop, and click Run workflow. When it finishes, download the Windows zip from the run's artifacts. To build on your own machine: `pip install -r requirements-desktop.txt` then `pyinstaller brandops.spec --noconfirm`.
 
 ## Limits
 
