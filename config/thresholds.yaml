@@ -1,9 +1,0 @@
-# Red/green limits and alert rules. Agree these with each function owner.
-status:
-  roas:               {green_min: 2.5, red_below: 2.0}
-  conversion_rate:    {green_min: 0.03, red_below: 0.02}
-  trustpilot_score:   {green_min: 4.0, red_below: 3.7}
-alerts:
-  - {metric: ai_citation_share, rule: drop_pct_week_over_week, value: 20, notify: slack}
-  - {metric: ai_crawler_errors, rule: above, value: 50, notify: slack}
-  - {metric: roas, rule: below, value: 2.0, notify: slack}
