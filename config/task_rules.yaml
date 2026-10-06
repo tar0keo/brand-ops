@@ -14,6 +14,12 @@ thresholds:
   reply_rate_min: 0.5
   min_reviews: 10           # ignore review rules below this volume
 
+# Press coverage saved on the Media releases tab is attached to a new ticket when its brand has coverage from the last `days` days.
+media_context:
+  rules: [rating, negative_reviews, reply_rate, citation_drop]   # the kinds of task where coverage is useful context
+  days: 90
+  max_links: 5
+
 cooldown_days: 14           # a task already ticketed within this window is not proposed again
 
 jira:

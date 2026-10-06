@@ -216,3 +216,12 @@ def remove_category(cat_id):
         moved = sum(1 for b in all_brands() if b["category"] == cat_id)
         _save_categories([c for c in cats if c is not gone])
         return {"removed": gone, "brands_moved": moved}
+
+
+def delete_brand(brand_id):
+    """Remove a brand from the list entirely (unlike archiving, which keeps it)."""
+    with _LOCK:
+        brands = all_brands()
+        gone = _find(brands, brand_id)
+        _save([b for b in brands if b is not gone])
+        return gone

@@ -331,10 +331,12 @@ def render(summary, tasks, series, status, demo, category=None, trends=None):
     expand = ('<input type="checkbox" class="all" id="all"><label class="expall" for="all">Expand or collapse all categories</label>'
               '<p class="mut">Click a category to open it. When you print or save as PDF, every category prints open.</p>') if len(cats) > 1 else ""
 
+    period = (f"Today, {end.strftime('%d %b %Y')}, compared with yesterday" if n == 1 else
+              f"{(end - timedelta(days=n - 1)).strftime('%d %b %Y')} to {end.strftime('%d %b %Y')} ({n} days), compared with the {n} days before")
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Brand operations dossier</title><style>{CSS}</style></head><body><div class="page">
 <h1>Brand operations dossier{': ' + E(scope) if category else ''}</h1>
-<div class="mut">{scope}. {(end - timedelta(days=n - 1)).strftime('%d %b %Y')} to {end.strftime('%d %b %Y')} ({n} days), compared with the {n} days before. Generated {datetime.now().strftime('%d %b %Y %H:%M')}.</div>
+<div class="mut">{scope}. {period}. Generated {datetime.now().strftime('%d %b %Y %H:%M')}.</div>
 {'<div class="banner">Demo data. These figures are not real.</div>' if demo else ''}
 <div class="glance">{glance}</div>
 <h2>What stands out</h2><ul>{''.join(f'<li>{x}</li>' for x in notes)}</ul>

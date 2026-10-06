@@ -9,7 +9,7 @@ The category selector in the header filters the summary at the top and every tab
 ## Managing brands and sites (Brands tab)
 
 - **Add brand:** name and category. The id is made from the name (for example "Zeta Co" becomes `zeta_co`) and can't change later, because stored data is keyed on it.
-- **Archive:** hides a brand from every view, total, and task, but keeps its data and config so it can be restored. There is no hard delete on purpose.
+- **Archive:** hides a brand from every view, total, and task, but keeps its data and config so it can be restored. **Delete** removes a brand for good: it leaves the list, its saved metrics are deleted, its sites are freed up, and its media links stay in the list as Unassigned. The Delete button asks twice and tells you how many rows of saved data will go. Archive instead if you may want the brand back.
 - **Sites:** add a domain to a brand (pasting a full URL is fine). A domain can belong to one brand only. Trustpilot reviews are matched to brands by these domains.
 - Changes are saved to `config/brands.yaml`. The app rewrites that file, so comments added by hand are not kept.
 - **Demo mode uses its own 30 sample brands (Brand 1 to Brand 30)** in a temporary file, so editing brands in a demo never touches your real `config/brands.yaml`. Restarting the demo resets them.
@@ -23,3 +23,7 @@ The "what stands out" notes come from simple rules, not AI.
 
 ## Report layout
 In the exported report, each category is a dropdown: click its heading to open it, or use "Expand or collapse all categories" at the top. Everything prints open when you print or save as PDF. Each category contains its scorecard, charts, the research trend (AI answers versus SEO over the last 90 days), and its proposed actions. The report still needs no scripts: the dropdowns are plain CSS.
+
+
+## Period
+The Period menu offers Today, the last 7, 30, or 60 days. Today shows the current day against yesterday. Imports often lag by a day, so Today can look thin or empty; thresholds for tasks were set with a month in mind, so fewer tasks will appear.

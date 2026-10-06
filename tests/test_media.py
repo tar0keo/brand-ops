@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from app import media, registry, server
+from app import media, registry, research, server
 from connectors import store
 from tests.helpers import get, post
 
@@ -109,11 +109,11 @@ def test_assign_remove_and_rematch_after_adding_a_brand(demo_mode):
     item = media.list_items(True)[0]
     assert item["brand_id"] is None  # Zeta Labs is not a brand yet
     registry.add_brand("Zeta Labs", "auto")
-    assert media.rematch(True) == {"updated": 1} and media.list_items(True)[0]["brand_id"] == "zeta_labs"
+    assert media.rematch(True) == {"updated": 1, "changed": 0, "summaries": 0} and media.list_items(True)[0]["brand_id"] == "zeta_labs"
     media.assign(item["id"], "brand_5", True)
     assert media.list_items(True)[0]["brand_id"] == "brand_5" and media.list_items(True)[0]["manual"] is True
     media.assign(item["id"], None, True)
-    assert media.rematch(True) == {"updated": 0} and media.list_items(True)[0]["brand_id"] is None  # your choice is kept
+    assert media.rematch(True) == {"updated": 0, "changed": 0, "summaries": 0} and media.list_items(True)[0]["brand_id"] is None  # your choice is kept
     with pytest.raises(ValueError):
         media.assign(item["id"], "nope", True)
     media.remove(item["id"], True)
@@ -207,3 +207,73 @@ def test_real_fetching_follows_redirects_checks_every_hop_and_skips_non_pages(mo
             media.fetch_page(base + "/pdf")
     finally:
         srv.shutdown()
+
+
+B30 = [{"id": "brand_3", "name": "Brand 3", "sites": []}, {"id": "brand_30", "name": "Brand 30", "sites": []},
+       {"id": "brand_300", "name": "Brand 300", "sites": []}, {"id": "acme", "name": "Acme Lending", "sites": []},
+       {"id": "fla", "name": "FLA", "sites": []}]
+
+
+def best(url, title="", body=""):
+    m = media.match_brands(url, title, body, B30)
+    return media.choose_brand(m), m
+
+
+@pytest.mark.parametrize("url,expected", [
+    ("https://brand30.com/news/launch", "brand_30"),                  # no space, as in the example that failed
+    ("https://www.brand-30.net/", "brand_30"),                         # hyphenated
+    ("https://getbrand30.com/", "brand_30"),                           # a common prefix
+    ("https://brand30loans.com/", "brand_30"),                         # a word after it
+    ("https://mybrand30.co.uk/", "brand_30"),                          # a two-part ending
+    ("https://brand300.com/", "brand_300"),                            # never mistaken for Brand 30
+    ("https://brand3.org/x", "brand_3"),                               # nor Brand 30 for Brand 3
+    ("https://acmelending.net/x", "acme"),                             # a name made of words
+    ("https://news.example.com/brand30-launches-loans", "brand_30"),   # in the wording of the link
+])
+def test_websites_named_like_a_brand_are_recognised_without_spaces(url, expected):
+    choice, matches = best(url)
+    assert choice == expected and [m["brand_id"] for m in matches] == [expected]  # and no other brand is a candidate
+
+
+@pytest.mark.parametrize("title,expected", [("Brand30 launches a new loan", "brand_30"), ("BRAND-30 opens", "brand_30"),
+                                            ("AcmeLending raises rates", "acme"), ("Brand 300 launches", "brand_300"), ("Brand 3 and more", "brand_3")])
+def test_names_are_found_whatever_the_spacing_or_capitals(title, expected):
+    assert best("https://news.example.com/a", title)[0] == expected
+
+
+def test_short_names_still_need_exact_capitals_and_common_words_do_not_match_inside_others():
+    assert best("https://news.example.com/a", "inflation news about fla")[0] is None
+    assert best("https://news.example.com/a", "FLA said it will lend")[0] == "fla"
+    assert best("https://inflation.example.org/x")[1] == []  # a website name only counts when it is the brand's name
+
+
+def test_matches_say_why_and_article_links_count():
+    m = media.match_brands("https://brand30.com/x", "Brand 30 launches", "Brand 30 said so.", B30)[0]
+    assert m["brand_id"] == "brand_30" and set(m["why"]) == {"name in the headline", "name in the text", "its website address"}
+    body = "A story about lending." + media.LINKS_MARK + "news.example.org brand30.com"
+    linked = media.match_brands("https://news.example.com/a", "Lending news", body, B30)
+    assert [(x["brand_id"], x["why"]) for x in linked] == [("brand_30", ["the article links to its website"])] and media.choose_brand(linked) == "brand_30"
+
+
+def test_links_in_the_article_are_kept_but_not_navigation_or_its_own_site():
+    html = ('<html><body><nav><a href="https://brand3.com/x">menu</a></nav><p>Read <a href="https://www.brand30.com/loans">more</a> and '
+            '<a href="https://news.example.com/other">ours</a></p><footer><a href="https://footer.example.org">f</a></footer></body></html>')
+    text, _, hosts = media.parse_page(html, "https://news.example.com/a")["body"].partition(media.LINKS_MARK)
+    assert hosts == "brand30.com" and "Read more and ours" in text
+
+
+def test_the_research_tab_recognises_brands_by_spacing_and_website_name_too():
+    assert research.resolve_brand("Brand30 Loans", None, B30) == "brand_30"
+    assert research.resolve_brand("Whoever", "https://brand30.com/x", B30) == "brand_30"
+    assert research.resolve_brand("Brand 22", None, B30) is None
+
+
+def test_rechecking_updates_automatic_matches_but_never_the_ones_you_set(demo_mode):
+    page = dict(title="Zeta Labs and Zeta Labs: Brand 5 comments", source="x", published=None, excerpt="", body="")
+    media.add_links("https://news.example.com/one\nhttps://news.example.com/two", True, lambda u: page)
+    by = lambda: {i["url"].rsplit("/", 1)[1]: i["brand_id"] for i in media.list_items(True)}
+    assert by() == {"one": "brand_5", "two": "brand_5"}  # Zeta Labs is not a brand yet
+    media.assign(next(i["id"] for i in media.list_items(True) if i["url"].endswith("two")), "brand_12", True)
+    registry.add_brand("Zeta Labs", "auto")
+    assert media.rematch(True) == {"updated": 0, "changed": 1, "summaries": 0}
+    assert by() == {"one": "zeta_labs", "two": "brand_12"}  # the one you set stays

@@ -24,3 +24,6 @@ The Actions view checks every brand against the limits in `config/task_rules.yam
 ## Tuning
 
 Edit `config/task_rules.yaml`. Raise `min_spend` and `min_reviews` to cut noise from small brands, and agree each limit with the function that owns it.
+
+## Press coverage in tickets
+If a brand has press coverage saved on the Media releases tab, a new ticket for that brand includes it under "Related media coverage" (headline link, source, date, and a short summary), for review, negative-review, reply-rate, and AI-citation tasks. The Actions tab shows what will be attached before you create the ticket, and the CSV export includes it too. Which kinds of task get coverage, how far back to look, and how many links to attach are set under `media_context` in `config/task_rules.yaml`. See docs/media-releases.md.

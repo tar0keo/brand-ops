@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 PRIORITY = {"High": 0, "Medium": 1, "Low": 2}
 MEDIA, PRODUCT, GEO, REP = "Media Buying", "Product", "PR / GEO / SEO", "Brand Reputation Protection"
 
@@ -85,3 +87,23 @@ def generate_tasks(summary, rules):
                     ["Reply to unanswered reviews, starting with the lowest ratings", "Agree a reply target and owner"])
 
     return sorted(tasks, key=lambda t: (PRIORITY[t["priority"]], t["brand"], t["rule"]))
+
+
+MEDIA_DEFAULTS = {"rules": ["rating", "negative_reviews", "reply_rate", "citation_drop"], "days": 90, "max_links": 5}
+
+
+def attach_media(tasks, links, cfg=None, today=None):
+    """Give each task the recent press coverage of its brand, for the kinds of task where it helps (set under media_context in task_rules.yaml).
+    Coverage counts when the app read the page, or when you assigned the link yourself."""
+    c = {**MEDIA_DEFAULTS, **(cfg or {})}
+    cutoff = ((today or date.today()) - timedelta(days=int(c["days"]))).isoformat()
+    when = lambda l: l.get("published") or str(l.get("added_at") or "")[:10]
+    for t in tasks:
+        t["media"] = []
+        if t["rule"] not in set(c["rules"]):
+            continue
+        mine = [l for l in links if l.get("brand_id") == t["brand_id"] and (l.get("status") == "ok" or l.get("manual")) and when(l) >= cutoff]
+        mine.sort(key=lambda l: (when(l), l.get("id", 0)), reverse=True)
+        t["media"] = [{"title": l["title"], "source": l.get("source") or "", "date": when(l), "url": l["url"], "summary": l.get("summary") or ""}
+                      for l in mine[:int(c["max_links"])]]
+    return tasks

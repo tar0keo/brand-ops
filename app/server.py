@@ -17,7 +17,7 @@ import yaml
 
 from app import demo, dossier, jira, media, registry, research, tasklog
 from app.summary import build_summary
-from app.tasks import generate_tasks
+from app.tasks import attach_media, generate_tasks
 from connectors import base, paths, store
 from connectors import run as runner
 from connectors.files import inbox, load_yaml
@@ -42,6 +42,7 @@ def enable_demo():
     (folder / "brands.yaml").write_text(yaml.safe_dump({"brands": demo.sample_brands()}, sort_keys=False))
     base.BRANDS_PATH = folder / "brands.yaml"
     DEMO = True
+    media.seed_demo()
 
 
 def disable_demo():
@@ -113,12 +114,30 @@ def brand_action(path, body):
         return registry.add_site(body.get("id", ""), body.get("domain", ""))
     if path == "/api/brands/site/remove":
         return registry.remove_site(body.get("id", ""), body.get("domain", ""))
+    if path == "/api/brands/delete":
+        return delete_brand(body.get("id", ""))
     raise ValueError("Unknown action")
+
+
+def brand_impact(brand_id):
+    """What deleting a brand would remove, so the page can say so before asking for confirmation."""
+    brand = next((b for b in registry.all_brands() if b["id"] == brand_id), None)
+    if brand is None:
+        raise ValueError(f"Unknown brand: {brand_id!r}")
+    return {"id": brand_id, "name": brand["name"], "metrics": 0 if DEMO else store.brand_metric_count(brand_id),
+            "links": media.count_brand(brand_id, DEMO)}
+
+
+def delete_brand(brand_id):
+    registry.delete_brand(brand_id)
+    links = media.release_brand(brand_id, DEMO)
+    metrics = 0 if DEMO else store.delete_brand_metrics(brand_id)
+    return {"deleted": brand_id, "metrics_deleted": metrics, "links_released": links}
 
 
 def current_tasks(days):
     rules = load_yaml("task_rules.yaml")
-    tasks = generate_tasks(get_summary(days), rules)
+    tasks = attach_media(generate_tasks(get_summary(days), rules), media.list_items(DEMO), rules.get("media_context"))
     ticketed = tasklog.recent(DEMO, rules["cooldown_days"])
     for t in tasks:
         t["ticket"] = ticketed.get(t["key"])
@@ -286,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(payload, default=str), "application/json")
 
     def _days(self, query):
-        return max(7, min(60, int(parse_qs(query).get("days", ["30"])[0])))
+        return max(1, min(60, int(parse_qs(query).get("days", ["30"])[0])))
 
     def _guard(self, post=False):
         host = self.headers.get("Host", "").rsplit(":", 1)[0]
@@ -311,6 +330,8 @@ class Handler(BaseHTTPRequestHandler):
                 payload["desktop"] = desktop()
                 payload["category_options"] = registry.category_options()
                 self._json(payload)
+            elif url.path == "/api/brands/impact":
+                self._json(brand_impact((parse_qs(url.query).get("id") or [""])[0]))
             elif url.path == "/api/brands":
                 self._json({"brands": registry.all_brands(), "categories": registry.category_list()})
             elif url.path == "/dossier":
@@ -371,7 +392,7 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/open-url":
                 return self._json(open_url(str(body.get("url", ""))))
             if url.path == "/api/export":
-                days = max(7, min(60, int(body.get("days", 30))))
+                days = max(1, min(60, int(body.get("days", 30))))
                 return self._json(export_file(body.get("kind", ""), days, body.get("category") or None))
             if url.path == "/api/open-folder":
                 return self._json(open_folder())
@@ -382,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
             keys = body.get("keys")
             if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
                 return self._json({"error": "keys must be a list of task keys"}, 400)
-            days = max(7, min(60, int(body.get("days", 30))))
+            days = max(1, min(60, int(body.get("days", 30))))
             self._json({"results": create_tasks(keys, days)})
         except ValueError as e:
             self._json({"error": str(e)}, 400)

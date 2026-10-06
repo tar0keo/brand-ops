@@ -53,6 +53,9 @@ th:first-child{text-align:left;font-weight:600}
 .btn.sm{height:28px;padding:0 10px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:default;pointer-events:none}
 .acts{white-space:nowrap}
+input.pick{width:12em}
+.tasks td.nw{white-space:nowrap}
+details.qe ul{color:var(--ink)}
 h3{font-size:15px;margin:22px 0 8px}
 h2.sect{font-size:17px;margin:30px 0 0;padding-top:12px;border-top:1px solid var(--line)}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:14px}
@@ -80,7 +83,7 @@ form.inline{display:inline-flex;gap:6px}
   <div><h1>Brand operations</h1><div class="note" id="sub">Loading...</div></div>
   <div class="tools">
     <label class="note">Category <select id="cat"><option value="">All categories</option></select></label>
-    <label class="note">Period <select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="60">Last 60 days</option></select></label>
+    <label class="note">Period <select id="days"><option value="1">Today</option><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="60">Last 60 days</option></select></label>
     <button class="btn" id="dos" data-export="dossier">Open dossier</button>
     <button class="btn" id="dosd" data-export="dossier-download">Download dossier</button>
     <button class="btn" id="demo" hidden>Try demo data</button>
@@ -166,7 +169,7 @@ async function renderView() {
 async function renderBrands(msg) {
   const r = await (await fetch('/api/brands')).json();
   const opt = sel => r.categories.map(c => `<option value="${esc(c.id)}"${c.id === sel ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
-  const rows = r.brands.filter(b => !cat || b.category === cat).map(b => `<tr><th scope="row">${esc(b.name)}<div class="note">${esc(b.id)}${b.active ? '' : ', archived'}</div></th><td><select data-cat="${esc(b.id)}" aria-label="Category for ${esc(b.name)}">${opt(b.category)}</select></td><td>${b.sites.map(x => `<span class="chip">${esc(x)} <button class="x" data-act="rmsite" data-id="${esc(b.id)}" data-d="${esc(x)}" aria-label="Remove ${esc(x)}">x</button></span>`).join('') || '<span class="note">No sites </span>'}<form class="inline" data-id="${esc(b.id)}"><input name="domain" placeholder="example.com" aria-label="Add a site to ${esc(b.name)}"><button class="btn sm">Add site</button></form></td><td><button class="btn sm" data-act="${b.active ? 'archive' : 'restore'}" data-id="${esc(b.id)}">${b.active ? 'Archive' : 'Restore'}</button></td></tr>`).join('');
+  const rows = r.brands.filter(b => !cat || b.category === cat).map(b => `<tr><th scope="row">${esc(b.name)}<div class="note">${esc(b.id)}${b.active ? '' : ', archived'}</div></th><td><select data-cat="${esc(b.id)}" aria-label="Category for ${esc(b.name)}">${opt(b.category)}</select></td><td>${b.sites.map(x => `<span class="chip">${esc(x)} <button class="x" data-act="rmsite" data-id="${esc(b.id)}" data-d="${esc(x)}" aria-label="Remove ${esc(x)}">x</button></span>`).join('') || '<span class="note">No sites </span>'}<form class="inline" data-id="${esc(b.id)}"><input name="domain" placeholder="example.com" aria-label="Add a site to ${esc(b.name)}"><button class="btn sm">Add site</button></form></td><td><button class="btn sm" data-act="${b.active ? 'archive' : 'restore'}" data-id="${esc(b.id)}">${b.active ? 'Archive' : 'Restore'}</button> <button class="btn sm" data-act="delete" data-id="${esc(b.id)}">Delete</button></td></tr>`).join('');
   const editable = r.categories.filter(c => c.id !== 'uncategorized'), nIn = id => r.brands.filter(b => b.category === id).length;
   const catRows = editable.map((c, i) => `<tr><td><form class="inline" data-cat-form="${esc(c.id)}"><input name="label" value="${esc(c.label)}" aria-label="Name of category ${esc(c.id)}"><button class="btn sm">Rename</button></form><div class="note">${esc(c.id)}</div></td><td>${nIn(c.id)}</td><td class="acts"><button class="btn sm" data-c="up" data-id="${esc(c.id)}"${i === 0 ? ' disabled' : ''}>Up</button> <button class="btn sm" data-c="down" data-id="${esc(c.id)}"${i === editable.length - 1 ? ' disabled' : ''}>Down</button> <button class="btn sm" data-c="rm" data-id="${esc(c.id)}">Remove</button></td></tr>`).join('');
   const catPanel = `<h3>Loan categories</h3><form id="cf" class="bar"><input name="label" placeholder="New category name" required aria-label="New category name"><button class="btn primary">Add category</button><span class="note">Renaming is safe. Removing a category moves its brands to Uncategorized; research data stored under it is kept.</span></form><div class="scroll"><table class="tasks"><thead><tr><th>Category</th><th>Brands</th><th></th></tr></thead><tbody>${catRows}</tbody></table></div><h3>Brands</h3>`;
@@ -185,6 +188,7 @@ async function renderStatus(msg) {
   const rows = info.sources.map(s => { const x = by[s.id] || {}; return `<tr><th scope="row">${esc(s.label)}<div class="note">${esc(s.folder)}</div></th><td>${when(x.last_success)}</td><td>${x.rows_loaded ?? 'n/a'}</td><td>${esc(x.last_error || 'none')}</td><td><button class="btn sm" data-imp="${esc(s.id)}"${info.demo ? ' disabled' : ''}>Import now</button></td></tr>`; }).join('');
   $('#view').innerHTML = `<div class="bar"><span class="note">${esc(info.demo ? 'Demo mode: importing is turned off.' : 'Put exported files in ' + info.inbox + ', in the folder shown under each source.')}</span>${info.desktop ? '<button class="btn" id="of">Open data folder</button>' : ''}<label class="note">Import window <select id="win"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="365">1 year</option></select></label><span class="note" id="msg">${esc(msg || '')}</span></div><div class="scroll"><table class="tasks"><thead><tr><th>Source</th><th>Last import</th><th>Rows</th><th>Last error</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
+const coverage = t => !(t.media && t.media.length) ? '' : `<details class="qe"><summary>Related coverage that goes into the ticket (${t.media.length})</summary><ul>${t.media.map(m => `<li><strong>${esc(m.title)}</strong> <span class="note">${esc(m.source)}, ${esc(m.date)}</span>${m.summary ? `<div class="note">${esc(m.summary)}</div>` : ''} <button class="btn sm" data-m="open" data-url="${esc(m.url)}">Open</button></li>`).join('')}</ul></details>`;
 async function renderActions() {
   const v = $('#view'), days = $('#days').value;
   v.innerHTML = '<p class="note">Checking the numbers...</p>';
@@ -193,7 +197,7 @@ async function renderActions() {
   r.tasks = r.tasks.filter(t => !cat || t.category === cat);
   const state = r.jira.configured ? 'Jira is connected.' : r.demo ? 'Demo data: creating tasks is simulated and nothing is sent to Jira.' : 'Jira is not connected. Download the CSV to import, or see docs/jira.md.';
   if (!r.tasks.length) { v.innerHTML = '<p>No actions needed. No brand crossed a threshold in this period.</p>'; return; }
-  const rows = r.tasks.map(t => `<tr><td>${t.ticket ? '' : `<input type="checkbox" class="pick" value="${esc(t.key)}" aria-label="Select: ${esc(t.title)}">`}</td><td><span class="pr ${t.priority.toLowerCase()}">${t.priority}</span></td><td><strong>${esc(t.title)}</strong><div class="note">${esc(t.why)}</div><ul>${t.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul></td><td>${esc(t.function)}<div class="note">${esc(catLabel(t.category))}</div></td><td>${t.ticket ? esc(t.ticket) : 'New'}</td></tr>`).join('');
+  const rows = r.tasks.map(t => `<tr><td>${t.ticket ? '' : `<input type="checkbox" class="pick" value="${esc(t.key)}" aria-label="Select: ${esc(t.title)}">`}</td><td><span class="pr ${t.priority.toLowerCase()}">${t.priority}</span></td><td><strong>${esc(t.title)}</strong><div class="note">${esc(t.why)}</div><ul>${t.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>${coverage(t)}</td><td>${esc(t.function)}<div class="note">${esc(catLabel(t.category))}</div></td><td>${t.ticket ? esc(t.ticket) : 'New'}</td></tr>`).join('');
   v.innerHTML = `<div class="bar"><button class="btn primary" id="mk">Create selected tasks</button><button class="btn" data-export="tasks">Export CSV for Jira import</button><span class="note" id="msg">${state}</span></div><div class="scroll"><table class="tasks"><thead><tr><th>Create</th><th>Priority</th><th>Task</th><th>Owner</th><th>Ticket</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   $('#mk').onclick = async () => {
     const keys = [...document.querySelectorAll('.pick:checked')].map(i => i.value);
@@ -214,22 +218,25 @@ function armed(btn, label, fn) {
   btn.dataset.label = btn.dataset.label || btn.textContent; btn.dataset.sure = '1'; btn.textContent = label; btn.classList.add('danger', 'armed');
   setTimeout(() => { if (btn.isConnected) { delete btn.dataset.sure; btn.textContent = btn.dataset.label; btn.classList.remove('danger', 'armed'); } }, 4000);
 }
-let mediaBrand = '';
+let mediaBrand = '', mediaBrands = [];
 async function renderMedia(msg) {
   const r = await (await fetch('/api/media')).json();
   if (r.error) { $('#view').innerHTML = `<div class="err">${esc(r.error)}</div>`; return; }
+  mediaBrands = r.brands;
   const brandOf = id => r.brands.find(b => b.id === id);
+  const nameOf = id => id ? ((brandOf(id) || {}).name || id + ' (archived)') : '';
   const all = r.items.filter(i => !i.brand_id || !cat || (brandOf(i.brand_id) || {}).category === cat);
   const shown = all.filter(i => !mediaBrand || (mediaBrand === '_none' ? !i.brand_id : i.brand_id === mediaBrand));
   const opts = sel => '<option value="">Unassigned</option>' + (sel && !brandOf(sel) ? `<option value="${esc(sel)}" selected>${esc(sel)} (archived)</option>` : '') + r.brands.map(b => `<option value="${esc(b.id)}"${b.id === sel ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
   const filt = `<option value="">All links</option><option value="_none"${mediaBrand === '_none' ? ' selected' : ''}>Unassigned</option>` + r.brands.map(b => `<option value="${esc(b.id)}"${b.id === mediaBrand ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
   const rows = shown.map(i => {
     const others = i.matches.filter(m => m.brand_id !== i.brand_id).slice(0, 3).map(m => m.name);
-    const hint = i.brand_id ? (i.manual ? 'Set by you' : 'Matched automatically') + (others.length ? '. Also mentions ' + others.join(', ') : '') : (others.length ? 'Possible: ' + others.join(', ') : 'No brand found');
-    return `<tr><td>${esc(i.published || String(i.added_at).slice(0, 10))}</td><td><select data-mb="${i.id}" aria-label="Brand for ${esc(i.title)}">${opts(i.brand_id)}</select><div class="note">${esc(hint)}</div></td><td><strong>${esc(i.title)}</strong><div class="note">${esc(i.source)}${i.status !== 'ok' ? '. Could not read this page, so it was matched from the link only.' : ''}</div>${i.excerpt ? `<div class="note">${esc(i.excerpt)}</div>` : ''}</td><td class="acts"><button class="btn sm" data-m="open" data-url="${esc(i.url)}">Open</button> <button class="btn sm" data-m="rm" data-id="${i.id}">Remove</button></td></tr>`;
+    const mine = i.matches.find(m => m.brand_id === i.brand_id), why = mine && mine.why && mine.why.length ? ' (' + mine.why.join(', ') + ')' : '';
+    const hint = i.brand_id ? (i.manual ? 'Set by you' : 'Matched automatically' + why) + (others.length ? '. Also mentions ' + others.join(', ') : '') : (others.length ? 'Possible: ' + others.join(', ') : 'No brand found');
+    return `<tr><td class="nw">${esc(i.published || String(i.added_at).slice(0, 10))}</td><td><input class="pick" list="mbrands" data-mb="${i.id}" value="${esc(nameOf(i.brand_id))}" placeholder="Unassigned" aria-label="Brand for ${esc(i.title)}"><div class="note">${esc(hint)}</div></td><td><strong>${esc(i.title)}</strong><div class="note">${esc(i.source)}${i.status !== 'ok' ? '. Could not read this page, so it was matched from the link only.' : ''}</div>${i.summary ? `<div>${esc(i.summary)}</div>` : (i.excerpt ? `<div class="note">${esc(i.excerpt)}</div>` : '')}</td><td class="acts"><button class="btn sm" data-m="open" data-url="${esc(i.url)}">Open</button> <button class="btn sm" data-m="rm" data-id="${i.id}">Remove</button></td></tr>`;
   }).join('');
-  const list = shown.length ? `<div class="scroll"><table class="tasks"><thead><tr><th>Date</th><th>Brand</th><th>Article or post</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No links to show yet. Paste some above.</p>';
-  $('#view').innerHTML = `<form id="mf"><textarea name="text" rows="3" aria-label="Links to articles or posts" placeholder="Paste links to articles or posts, one per line"></textarea><div class="bar" style="margin-top:10px"><button class="btn primary">Add links</button><button type="button" class="btn" data-m="recheck">Re-check unassigned</button><span class="note" id="msg">${esc(msg || 'Each page is read and matched to the brand it mentions. You can change any match.')}</span></div></form><div class="bar"><label class="note">Show <select id="mbrand">${filt}</select></label><span class="note">${all.length} links, ${all.filter(i => i.brand_id).length} matched to a brand</span></div>${list}`;
+  const list = shown.length ? `<div class="scroll"><table class="tasks"><thead><tr><th>Date</th><th>Brand</th><th>Article or post</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><datalist id="mbrands">${r.brands.map(b => `<option value="${esc(b.name)}">`).join('')}</datalist>` : '<p>No links to show yet. Paste some above.</p>';
+  $('#view').innerHTML = `<form id="mf"><textarea name="text" rows="3" aria-label="Links to articles or posts" placeholder="Paste links to articles or posts, one per line"></textarea><div class="bar" style="margin-top:10px"><button class="btn primary">Add links</button><button type="button" class="btn" data-m="recheck">Re-check automatic matches</button><span class="note" id="msg">${esc(msg || 'Each page is read and matched to the brand it mentions. You can change any match.')}</span></div></form><div class="bar"><label class="note">Show <select id="mbrand">${filt}</select></label><span class="note">${all.length} links, ${all.filter(i => i.brand_id).length} matched to a brand</span></div>${list}`;
 }
 async function addLinks(text) {
   if (!text.trim()) { await renderMedia('Paste at least one link.'); return; }
@@ -310,7 +317,7 @@ async function load() {
     sel.innerHTML = '<option value="">All categories</option>' + data.category_options.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
     sel.value = data.category_options.some(c => c.id === keep) ? keep : ''; cat = sel.value;
     const p0 = data.portfolio.current, empty = !data.demo && p0.profit == null && p0.citation_share == null && p0.rating == null;
-    $('#sub').textContent = empty ? 'No data yet. Import exported files from Data status, or try the demo data.' : (data.demo ? 'Demo data. ' : '') + `Compared with the previous ${data.days} days, to ${data.end}.`;
+    $('#sub').textContent = empty ? 'No data yet. Import exported files from Data status, or try the demo data.' : (data.demo ? 'Demo data. ' : '') + (data.days === 1 ? `Today (${data.end}), compared with yesterday.` : `Compared with the previous ${data.days} days, to ${data.end}.`);
     const db = $('#demo'); db.hidden = !data.desktop; $('#dosd').hidden = data.desktop; db.textContent = data.demo ? 'Leave demo data' : 'Try demo data';
     $('#foot').textContent = 'Profit is ad revenue minus ad spend (provisional until the profit definition is agreed). Revenue is platform-reported.';
     renderStrip(); await renderView();
@@ -351,9 +358,16 @@ $('#view').addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, fd = Object.fromEntries(new FormData(f));
   if (f.id === 'cf') saveCategory('/api/categories/add', fd); else if (f.dataset.catForm) saveCategory('/api/categories/rename', {id: f.dataset.catForm, label: fd.label}); else if (f.id === 'qf') saveQuestions(fd.q); else if (f.id === 'mf') addLinks(fd.text); else if (f.id === 'nb') saveBrand('/api/brands', fd); else if (f.dataset.id) saveBrand('/api/brands/site', {id: f.dataset.id, domain: fd.domain});
 });
-$('#view').addEventListener('click', e => {
+$('#view').addEventListener('click', async e => {
   const b = e.target.closest('button[data-act]'); if (!b) return;
   const {act: kind, id, d} = b.dataset;
+  if (kind === 'delete') {
+    const go = () => saveBrand('/api/brands/delete', {id});
+    if (b.dataset.sure) return armed(b, '', go);
+    const imp = await (await fetch('/api/brands/impact?id=' + encodeURIComponent(id))).json();
+    if (imp.error) { await renderBrands(imp.error); return; }
+    return armed(b, `Delete${imp.metrics ? ' and ' + imp.metrics.toLocaleString() + ' data rows' : ''}? Click again`, go);
+  }
   if (kind === 'rmsite') saveBrand('/api/brands/site/remove', {id, domain: d});
   else if (kind === 'archive') armed(b, 'Click again to archive', () => saveBrand('/api/brands/archive', {id, active: false}));
   else if (kind === 'restore') saveBrand('/api/brands/archive', {id, active: true});
@@ -363,11 +377,17 @@ $('#view').addEventListener('click', async e => {
   const k = b.dataset.m;
   if (k === 'open') await openUrl(b.dataset.url);
   else if (k === 'rm') armed(b, 'Click again to remove', async () => { const r = await postJson('/api/media/remove', {id: +b.dataset.id}); await renderMedia(r.error || 'Removed.'); });
-  else if (k === 'recheck') { const r = await postJson('/api/media/rematch', {}); await renderMedia(r.error || `Checked again: ${r.updated} newly matched.`); }
+  else if (k === 'recheck') { const r = await postJson('/api/media/rematch', {}); await renderMedia(r.error || `Checked again: ${r.updated} newly matched` + (r.changed ? `, ${r.changed} changed` : '') + '.' + (r.summaries ? ` ${r.summaries} summaries written.` : '')); }
 });
 $('#view').addEventListener('change', async e => {
-  const s = e.target.closest('select[data-mb]');
-  if (s) { const r = await postJson('/api/media/assign', {id: +s.dataset.mb, brand_id: s.value || null}); await renderMedia(r.error || 'Saved.'); }
+  const s = e.target.closest('[data-mb]');
+  if (s) {
+    const norm = x => x.toLowerCase().replace(/[^a-z0-9]/g, ''), typed = s.value.trim();
+    const hit = typed ? mediaBrands.find(b => norm(b.name) === norm(typed) || b.id === typed.toLowerCase()) : null;
+    if (typed && !hit) { await renderMedia(`No brand called "${typed}". Choose one from the list.`); return; }
+    const r = await postJson('/api/media/assign', {id: +s.dataset.mb, brand_id: hit ? hit.id : null});
+    await renderMedia(r.error || 'Saved.');
+  }
   else if (e.target.id === 'mbrand') { mediaBrand = e.target.value; await renderMedia(); }
 });
 document.addEventListener('click', async e => {

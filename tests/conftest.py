@@ -2,7 +2,7 @@ import threading
 
 import pytest
 
-from app import server, tasklog
+from app import media, server, tasklog
 from connectors import base
 
 
@@ -12,6 +12,7 @@ def demo_mode(monkeypatch):
         monkeypatch.setattr(base, attr, getattr(base, attr))  # restored after the test
     tasklog._MEM.clear()
     server.enable_demo()
+    media._MEM.clear()  # tests add their own links; the demo's sample links have their own test
     yield
     server.DEMO = False
     tasklog._MEM.clear()

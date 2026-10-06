@@ -39,6 +39,13 @@ def db_path():
     return paths.home() / "data" / "brandops.db"
 
 
+def _migrate(conn):
+    """Bring a database made by an older version up to date."""
+    cols = {r[1] for r in conn.execute("pragma table_info(media_items)")}
+    if cols and "summary" not in cols:
+        conn.execute("alter table media_items add column summary text not null default ''")
+
+
 @contextmanager
 def session():
     p = db_path()
@@ -46,6 +53,7 @@ def session():
     conn = sqlite3.connect(p, timeout=30)
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         with conn:  # commits on success, rolls back on error
             yield conn
     finally:
@@ -156,13 +164,14 @@ def tasklog_record(key, ticket):
 MEDIA_SQLITE = """
 create table if not exists media_items (
   id integer primary key autoincrement, url text not null unique, title text, source text, published text,
-  excerpt text, body text, brand_id text, matches text not null default '[]', status text not null default 'ok',
+  excerpt text, summary text not null default '', body text, brand_id text, matches text not null default '[]', status text not null default 'ok',
   manual integer not null default 0, added_at text not null default (strftime('%Y-%m-%dT%H:%M:%SZ','now')));
 """
 MEDIA_PG = ("create table if not exists media_items (id bigserial primary key, url text not null unique, title text, "
-            "source text, published text, excerpt text, body text, brand_id text, matches text not null default '[]', "
+            "source text, published text, excerpt text, summary text not null default '', body text, brand_id text, matches text not null default '[]', "
             "status text not null default 'ok', manual integer not null default 0, added_at timestamptz not null default now())")
-MEDIA_COLS = "id, url, title, source, published, excerpt, brand_id, matches, status, manual, added_at"
+MEDIA_COLS = "id, url, title, source, published, excerpt, brand_id, matches, status, manual, added_at, summary"
+MEDIA_PG_MIGRATE = "alter table media_items add column if not exists summary text not null default ''"
 SCHEMA += MEDIA_SQLITE
 
 
@@ -174,6 +183,7 @@ def _q(sql, params=(), fetch=False):
             return cur.fetchall() if fetch else cur.rowcount
     with _pg() as cur:
         cur.execute(MEDIA_PG)
+        cur.execute(MEDIA_PG_MIGRATE)
         cur.execute(RESEARCH_PG)
         cur.execute(sql.replace("?", "%s"), params)
         return cur.fetchall() if fetch else cur.rowcount
@@ -182,7 +192,7 @@ def _q(sql, params=(), fetch=False):
 def _media_row(r):
     return {"id": r[0], "url": r[1], "title": r[2], "source": r[3], "published": r[4], "excerpt": r[5],
             "brand_id": r[6] or None, "matches": json.loads(r[7] or "[]"), "status": r[8],
-            "manual": bool(r[9]), "added_at": str(r[10])}
+            "manual": bool(r[9]), "added_at": str(r[10]), "summary": r[11] or ""}
 
 
 def media_list():
@@ -197,17 +207,17 @@ def media_exists(url):
 
 def media_add(item):
     """Insert a link. Returns its id, or None if that link is already saved."""
-    vals = (item["url"], item.get("title"), item.get("source"), item.get("published"), item.get("excerpt"),
-            item.get("body"), item.get("brand_id"), json.dumps(item.get("matches") or []),
-            item.get("status", "ok"), int(bool(item.get("manual"))))
-    q = ("insert into media_items (url, title, source, published, excerpt, body, brand_id, matches, status, manual) "
-         "values (?,?,?,?,?,?,?,?,?,?) on conflict(url) do nothing")
+    vals = (item["url"], item.get("title"), item.get("source"), item.get("published"), item.get("excerpt"), item.get("summary") or "",
+            item.get("body"), item.get("brand_id"), json.dumps(item.get("matches") or []), item.get("status", "ok"), int(bool(item.get("manual"))))
+    q = ("insert into media_items (url, title, source, published, excerpt, summary, body, brand_id, matches, status, manual) "
+         "values (?,?,?,?,?,?,?,?,?,?,?) on conflict(url) do nothing")
     if is_sqlite():
         with session() as c:
             cur = c.execute(q, vals)
             return cur.lastrowid if cur.rowcount else None
     with _pg() as cur:
         cur.execute(MEDIA_PG)
+        cur.execute(MEDIA_PG_MIGRATE)
         cur.execute(q.replace("?", "%s") + " returning id", vals)
         row = cur.fetchone()
         return row[0] if row else None
@@ -271,3 +281,42 @@ def research_runs(since):
               "where run_date >= ? order by run_date, id", (since,), fetch=True)
     return [{"run_date": date.fromisoformat(str(r[0])), "category": r[1], "question": r[2], "engine": r[3], "model": r[4],
              "location": r[5], "citations": json.loads(r[6] or "[]"), "results": json.loads(r[7] or "[]")} for r in rows]
+
+
+# ---------- removing a brand's saved data ----------
+def brand_metric_count(brand_id):
+    return _q("select count(*) from fact_metrics where brand_id = ?", (brand_id,), fetch=True)[0][0]
+
+
+def delete_brand_metrics(brand_id):
+    """Delete every saved metric row for a brand. Returns how many."""
+    n = _q("delete from fact_metrics where brand_id = ?", (brand_id,))
+    if not is_sqlite():
+        _q("delete from brands where brand_id = ?", (brand_id,))  # PostgreSQL keeps a brands table
+    return n
+
+
+def media_count_brand(brand_id):
+    return _q("select count(*) from media_items where brand_id = ?", (brand_id,), fetch=True)[0][0]
+
+
+def media_release_brand(brand_id):
+    """Unassign a brand's media links. The links stay in the list and can be matched again."""
+    return _q("update media_items set brand_id = NULL, manual = 0 where brand_id = ?", (brand_id,))
+
+
+def media_automatic():
+    """Every link whose brand was chosen by the app, not by you (assigned or not), with the text used to match it."""
+    rows = _q("select id, url, title, body, brand_id from media_items where manual = 0", fetch=True)
+    return [{"id": r[0], "url": r[1], "title": r[2] or "", "body": r[3] or "", "brand_id": r[4] or None} for r in rows]
+
+
+def media_missing_summary():
+    """Readable links saved without a summary (for example, before summaries existed)."""
+    rows = _q("select id, title, body, brand_id from media_items where (summary is null or summary = '') and status = 'ok' "
+              "and body is not null and body != ''", fetch=True)
+    return [{"id": r[0], "title": r[1] or "", "body": r[2] or "", "brand_id": r[3] or None} for r in rows]
+
+
+def media_set_summary(item_id, summary):
+    return _q("update media_items set summary = ? where id = ?", (summary, item_id)) > 0

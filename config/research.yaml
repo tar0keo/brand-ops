@@ -4,7 +4,7 @@ engines:
   chatgpt: {label: ChatGPT, kind: generative}
   gemini: {label: Gemini, kind: generative}
   perplexity: {label: Perplexity, kind: generative}
-  claude: {label: Claude, kind: generative}
+  claude: {label: Claude, kind: generative, api: {provider: anthropic, model: claude-sonnet-5-5, web_search: true, max_searches: 4}}
   google_ai_overview: {label: Google AI Overviews, kind: generative}
   google_organic: {label: Google search (SEO), kind: seo}
 

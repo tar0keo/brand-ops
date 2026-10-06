@@ -23,9 +23,23 @@ def _slug(text):
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
+def _wiki(text):
+    """Plain text that Jira's markup will not misread."""
+    return re.sub(r"\s+", " ", re.sub(r"[\[\]{}|]", " ", str(text or ""))).strip()
+
+
+def coverage_text(task):
+    lines = []
+    for m in task.get("media") or []:
+        url = str(m["url"]).replace("|", "%7C").replace(" ", "%20").replace("[", "%5B").replace("]", "%5D")
+        line = f"* [{_wiki(m['title'])}|{url}] ({_wiki(m.get('source'))}, {m.get('date', '')})"
+        lines.append(line + (f": {_wiki(m['summary'])}" if m.get("summary") else ""))
+    return "h3. Related media coverage\n" + "\n".join(lines) + "\n\n" if lines else ""
+
+
 def build_fields(cfg, project, task):
     steps = "\n".join(f"* {a}" for a in task["actions"])
-    description = (f"{task['why']}\n\nSuggested steps:\n{steps}\n\n"
+    description = (f"{task['why']}\n\nSuggested steps:\n{steps}\n\n" + coverage_text(task) +
                    f"Brand: {task['brand']}\nOwner function: {task['function']}\n"
                    f"Source: brand-ops scorecard ({task['key']})")
     fields = {

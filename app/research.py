@@ -76,14 +76,17 @@ def domain_of(url):
 
 
 def resolve_brand(name, url, brands):
-    """Which of our brands (if any) a listed company is. A matching site wins over a matching name."""
+    """Which of our brands (if any) a listed company is. A matching site wins, then a site named like the brand, then the name."""
     d = domain_of(url)
     if d:
         for b in brands:
             if any(d == s or d.endswith("." + s) for s in b.get("sites") or []):
                 return b["id"]
+        for b in brands:
+            if media.label_score(d, b) >= 6:
+                return b["id"]
     for b in brands:
-        if media._name_re(b["name"]).search(name or ""):
+        if media.mentions(name, b["name"]):
             return b["id"]
     return None
 

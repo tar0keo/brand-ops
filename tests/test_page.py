@@ -39,3 +39,15 @@ def test_header_is_not_duplicated_and_ids_are_unique():
     assert top.count("<h1>") == 1 and top.count('id="sub"') == 1
     ids = re.findall(r'id="([^"]+)"', top)
     assert len(ids) == len(set(ids))
+
+
+def test_brand_delete_button_asks_twice_and_shows_the_impact():
+    assert 'data-act="delete"' in PAGE and "/api/brands/impact" in PAGE and "/api/brands/delete" in PAGE
+
+
+def test_brands_can_be_picked_by_typing():
+    assert 'list="mbrands"' in PAGE and "<datalist" in PAGE and "Re-check automatic matches" in PAGE
+
+
+def test_period_has_today_and_tasks_show_their_coverage():
+    assert '<option value="1">Today</option>' in PAGE and "Related coverage that goes into the ticket" in PAGE and "summaries written" in PAGE

@@ -30,3 +30,7 @@ Central brand operations app: connectors pull data from ad, analytics, GEO, repu
 ## Desktop app
 
 `python brandops_desktop.py` runs the app in its own window with a local database. See docs/desktop.md.
+
+## Research runner
+
+`python -m runner --dry-run` shows what the research runner would ask an AI engine; see docs/research-runner.md.
