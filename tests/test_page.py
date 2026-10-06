@@ -27,3 +27,15 @@ def test_market_research_tab_is_present():
 
 def test_category_editor_is_present():
     assert "Loan categories" in PAGE and "/api/categories/add" in PAGE and "Edit the questions for this category" in PAGE
+
+
+def test_trend_view_is_present():
+    assert "Trends over time" in PAGE and "/api/research/trend" in PAGE and 'id="trange"' in PAGE
+
+
+def test_header_is_not_duplicated_and_ids_are_unique():
+    import re
+    top = PAGE.split("<script>")[0]
+    assert top.count("<h1>") == 1 and top.count('id="sub"') == 1
+    ids = re.findall(r'id="([^"]+)"', top)
+    assert len(ids) == len(set(ids))

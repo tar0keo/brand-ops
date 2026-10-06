@@ -97,7 +97,9 @@ def dossier_html(days, category=None):
     except Exception:
         status = []
     series = dossier.daily_profit(rows, brands, end - timedelta(days=days - 1), end)
-    return dossier.render(summary, tasks, series, status, DEMO, category)
+    cat_ids = [c["id"] for c in summary["categories"] if not category or c["id"] == category]
+    trends = research.trends_for(brands, cat_ids, 90, DEMO)
+    return dossier.render(summary, tasks, series, status, DEMO, category, trends)
 
 
 def brand_action(path, body):
@@ -321,6 +323,10 @@ class Handler(BaseHTTPRequestHandler):
             elif url.path == "/api/media":
                 self._json({"items": media.list_items(DEMO), "demo": DEMO,
                             "brands": [{"id": b["id"], "name": b["name"], "category": b["category"]} for b in registry.active_brands()]})
+            elif url.path == "/api/research/trend":
+                q = parse_qs(url.query)
+                days = int((q.get("days") or ["90"])[0])
+                self._json(research.trend_report(days, (q.get("category") or [None])[0] or None, DEMO))
             elif url.path == "/api/research":
                 q = parse_qs(url.query)
                 payload = research.report(self._days(url.query), (q.get("category") or [None])[0] or None, DEMO)

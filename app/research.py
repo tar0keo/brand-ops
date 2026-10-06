@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-from app import demo, media, registry
+from app import demo, dossier, media, registry
 from connectors import base, store
 from connectors.files import inbox, load_yaml, parse_date
 
@@ -272,6 +272,16 @@ def _our_domain(d, brands):
     return any(d == s or d.endswith("." + s) for b in brands for s in b.get("sites") or [])
 
 
+def _listed(run, brands, names):
+    """The companies in one answer, one entry per company, with our brands recognised."""
+    seen = {}
+    for it in sorted(run["results"], key=lambda x: x["rank"]):
+        bid, d = resolve_brand(it["name"], it.get("url"), brands), domain_of(it.get("url"))
+        key = "brand:" + bid if bid else ("d:" + d if d else "n:" + re.sub(r"[^a-z0-9]", "", it["name"].lower()))
+        seen.setdefault(key, {"key": key, "name": names[bid] if bid else it["name"], "brand_id": bid, "domain": d, "rank": it["rank"]})
+    return seen
+
+
 def analyze(runs, brands, category, since, cfg=None):
     """Compare the latest answer to each question, per engine, within the period."""
     cfg = cfg or config()
@@ -284,15 +294,7 @@ def analyze(runs, brands, category, since, cfg=None):
             if k not in latest or r["run_date"] >= latest[k]["run_date"]:
                 latest[k] = r
 
-    def listed(run):
-        seen = {}
-        for it in sorted(run["results"], key=lambda x: x["rank"]):
-            bid, d = resolve_brand(it["name"], it.get("url"), brands), domain_of(it.get("url"))
-            key = "brand:" + bid if bid else ("d:" + d if d else "n:" + re.sub(r"[^a-z0-9]", "", it["name"].lower()))
-            seen.setdefault(key, {"key": key, "name": names[bid] if bid else it["name"], "brand_id": bid, "domain": d, "rank": it["rank"]})
-        return seen
-
-    parsed = {k: listed(r) for k, r in latest.items()}
+    parsed = {k: _listed(r, brands, names) for k, r in latest.items()}
     gen = [k for k in latest if kind[k[1]] == "generative"]
     seo = [k for k in latest if kind[k[1]] == "seo"]
     ent = {}
@@ -388,6 +390,123 @@ def overview(runs, brands, since, cfg=None):
     return out
 
 
+def trend(runs, brands, category, since, end, cfg=None):
+    """Week-by-week view of one category: our share of listed spots, each brand, the top companies, and who is moving."""
+    cfg = cfg or config()
+    kind = {k: v.get("kind", "generative") for k, v in cfg["engines"].items()}
+    names = {b["id"]: b["name"] for b in brands}
+    wk = lambda d: d - timedelta(days=d.weekday())
+    first, last = wk(since), wk(end)
+    weeks = [first + timedelta(days=7 * i) for i in range((last - first).days // 7 + 1)]
+    latest = defaultdict(dict)  # week -> (question, engine) -> the latest run that week
+    for r in runs:
+        if r["category"] == category and since <= r["run_date"] <= end and r["engine"] in kind:
+            k, w = (norm_q(r["question"]), r["engine"]), wk(r["run_date"])
+            if k not in latest[w] or r["run_date"] >= latest[w][k]["run_date"]:
+                latest[w][k] = r
+    rate, share, n_runs, ent = {"gen": {}, "seo": {}}, {"gen": {}, "seo": {}}, {"gen": {}, "seo": {}}, {}
+    for w in weeks:
+        groups = {"gen": [], "seo": []}
+        for k, r in latest[w].items():
+            groups["gen" if kind[k[1]] == "generative" else "seo"].append(_listed(r, brands, names))
+        for g, lists in groups.items():
+            n_runs[g][w] = len(lists)
+            if not lists:
+                continue
+            counts, slots, ours = Counter(), 0, 0
+            for p in lists:
+                for key, e in p.items():
+                    counts[key] += 1
+                    slots += 1
+                    ours += bool(e["brand_id"])
+                    ent.setdefault(key, (e["name"], bool(e["brand_id"])))
+            rate[g][w] = {key: c / len(lists) for key, c in counts.items()}
+            share[g][w] = ours / slots
+
+    def mean(xs):
+        xs = [x for x in xs if x is not None]
+        return sum(xs) / len(xs) if xs else None
+
+    r3 = lambda v: None if v is None else round(v, 3)
+    series = lambda g, key: [r3(rate[g][w].get(key, 0)) if w in rate[g] else None for w in weeks]
+    mid = len(weeks) // 2
+    before, after = weeks[:mid], weeks[mid:]
+    sm = lambda g, wks: mean([share[g].get(w) for w in wks])
+    change = lambda a, b: None if a is None or b is None else round(b - a, 3)
+    gb, ga, sb, sa = sm("gen", before), sm("gen", after), sm("seo", before), sm("seo", after)
+
+    our = []
+    for b in brands:
+        if b["category"] == category:
+            key = "brand:" + b["id"]
+            our.append({"name": b["name"], "brand_id": b["id"], "gen": series("gen", key), "seo": series("seo", key)})
+    our.sort(key=lambda x: -(mean(x["gen"]) or 0))
+
+    def half_rate(key, wks):
+        return mean([rate["gen"][w].get(key, 0) for w in wks if w in rate["gen"]])
+
+    comps, moves = [], []
+    for key, (name, is_ours) in ent.items():
+        m = mean([rate["gen"][w].get(key, 0) for w in weeks if w in rate["gen"]])
+        if not is_ours and m:
+            comps.append((m, {"name": name, "gen": series("gen", key)}))
+        b, a = half_rate(key, before), half_rate(key, after)
+        if b is not None and a is not None:
+            moves.append({"name": name, "ours": is_ours, "before": round(b, 3), "now": round(a, 3), "change": round(a - b, 3)})
+    labels = {c["id"]: c["label"] for c in registry.category_list()}
+    active = [w for w in weeks if n_runs["gen"][w] or n_runs["seo"][w]]
+    return {"category": category, "label": labels.get(category, category), "days": (end - since).days + 1, "weeks": weeks,
+            "has_data": bool(active), "enough": len(active) >= 2,
+            "runs_gen": [n_runs["gen"][w] for w in weeks], "runs_seo": [n_runs["seo"][w] for w in weeks],
+            "ours_gen": [r3(share["gen"].get(w)) for w in weeks], "ours_seo": [r3(share["seo"].get(w)) for w in weeks],
+            "brands": our, "competitors": [c for _, c in sorted(comps, key=lambda x: -x[0])[:5]],
+            "movers": {"rising": sorted([m for m in moves if m["change"] >= 0.05], key=lambda m: -m["change"])[:5],
+                       "falling": sorted([m for m in moves if m["change"] <= -0.05], key=lambda m: m["change"])[:5]},
+            "summary": {"ours_gen_before": r3(gb), "ours_gen_after": r3(ga), "ours_gen_change": change(gb, ga),
+                        "ours_seo_before": r3(sb), "ours_seo_after": r3(sa), "ours_seo_change": change(sb, sa),
+                        "first_week": weeks[0].isoformat(), "last_week": weeks[-1].isoformat()}}
+
+
+def trend_overview(runs, brands, since, end, cfg=None):
+    cfg, out = cfg or config(), []
+    for c in registry.category_list():
+        t = trend(runs, brands, c["id"], since, end, cfg)
+        if c["id"] == "uncategorized" and not t["has_data"]:
+            continue
+        s = t["summary"]
+        out.append({"id": c["id"], "label": c["label"], "enough": t["enough"],
+                    "weeks": sum(1 for a, b in zip(t["runs_gen"], t["runs_seo"]) if a or b),
+                    "ours_gen_now": s["ours_gen_after"], "ours_gen_change": s["ours_gen_change"],
+                    "ours_seo_now": s["ours_seo_after"], "ours_seo_change": s["ours_seo_change"]})
+    return out
+
+
+def trends_for(brands, category_ids, days, demo_mode):
+    """Trend data for the report. None when research is not set up at all."""
+    try:
+        cfg = config()
+    except FileNotFoundError:
+        return None
+    end = date.today()
+    since = end - timedelta(days=days - 1)
+    runs = _be(demo_mode).research_runs(since.isoformat())
+    return {cid: trend(runs, brands, cid, since, end, cfg) for cid in category_ids}
+
+
+def trend_report(days, category, demo_mode):
+    days = max(30, min(365, days))
+    end = date.today()
+    since = end - timedelta(days=days - 1)
+    cfg, brands = config(), registry.active_brands()
+    if category and category not in {c["id"] for c in registry.category_list()}:
+        raise ValueError("Unknown category")
+    runs = _be(demo_mode).research_runs(since.isoformat())
+    if category:
+        t = trend(runs, brands, category, since, end, cfg)
+        return {"trend": t, "html": dossier.trend_html(t, "tasks")}
+    return {"overview": trend_overview(runs, brands, since, end, cfg)}
+
+
 def report(days, category, demo_mode):
     cfg, brands = config(), registry.active_brands()
     since = date.today() - timedelta(days=days - 1)
@@ -403,24 +522,43 @@ COMPETITORS = ["Acme Lending", "Summit Credit", "Harbor Finance", "Pinecrest Loa
                "Northgate Funding", "Redwood Lending", "Clearpath Loans", "Oakline Credit", "Silverton Finance"]
 
 
+COMP_DRIFT = {"Harbor Finance": 0.08, "Bluebird Capital": 0.05, "Acme Lending": -0.05}  # a few companies gain or lose ground over time
+_DEMO_CACHE = {}
+
+
 def demo_runs(today):
-    """Deterministic sample answers: AI engines and Google favour different companies."""
-    cfg, brands, runs = config(), registry.all_brands(), []
+    """Deterministic sample answers for the last 17 weeks. AI engines and Google favour different companies, and some drift."""
+    cfg, brands = config(), registry.all_brands()
+    key = (today, tuple((b["id"], b["category"], b["active"]) for b in brands),
+           json.dumps(cfg.get("questions", {}), sort_keys=True), tuple(cfg["engines"]))
+    if _DEMO_CACHE.get("key") == key:
+        return _DEMO_CACHE["runs"]
+    runs = []
+    monday = today - timedelta(days=today.weekday())
     for cat in registry.categories():
         ours = [b for b in brands if b["category"] == cat["id"] and b["active"]]
         for qi, q in enumerate(cfg.get("questions", {}).get(cat["id"], [])):
             for eng, meta in cfg["engines"].items():
-                rng = random.Random(f"{cat['id']}-{qi}-{eng}")
-                if rng.random() < 0.15:
-                    continue  # a few gaps, so "runs still needed" has something to show
                 generative = meta.get("kind", "generative") == "generative"
-                pool = [(c, f"{re.sub(r'[^a-z]', '', c.lower())}.example.net", 1.0 - 0.07 * i) for i, c in enumerate(COMPETITORS)]
-                pool += [(b["name"], (b["sites"] or [None])[0], (demo.profile(b["id"])["share"] * 6) if generative else 0.55) for b in ours]
-                top = sorted(pool, key=lambda p: -(rng.random() ** (1.0 / max(p[2], 0.05))))[:10]
-                results = [{"rank": i + 1, "name": n, "url": (f"https://www.{d}" if d and not (generative and rng.random() < 0.3) else None)}
-                           for i, (n, d, _) in enumerate(top)]
-                cites = [{"url": f"https://{d}/guide", "title": ""} for d in ("reviews.example.net", "guide.example.com", "forum.example.org")[:rng.randint(2, 3)]]
-                cites += [{"url": r["url"], "title": ""} for r in results[:2] if r["url"]]
-                runs.append({"run_date": today - timedelta(days=rng.randint(0, 9)), "category": cat["id"], "question": q, "engine": eng,
-                             "model": "", "location": "", "citations": cites if generative else [], "results": results})
+                for w in range(17):  # w weeks ago
+                    rng = random.Random(f"{cat['id']}-{qi}-{eng}-{w}")
+                    if rng.random() < 0.13:
+                        continue  # a few gaps, so "runs still needed" has something to show
+                    fade = (16 - w) / 16  # 0 for the oldest week, 1 for the latest
+                    pool = [(c, f"{re.sub(r'[^a-z]', '', c.lower())}.example.net",
+                             (1.0 - 0.07 * i) * ((1 + COMP_DRIFT.get(c, 0) * 6 * fade) if generative else 1.0))
+                            for i, c in enumerate(COMPETITORS)]
+                    for b in ours:
+                        p = demo.profile(b["id"])
+                        weight = p["share"] * 6 * max(0.1, 1 + p["drift"] * 3 * fade) if generative else 0.55
+                        pool.append((b["name"], (b["sites"] or [None])[0], weight))
+                    top = sorted(pool, key=lambda x: -(rng.random() ** (1.0 / max(x[2], 0.05))))[:10]
+                    results = [{"rank": i + 1, "name": n, "url": (f"https://www.{d}" if d and not (generative and rng.random() < 0.3) else None)}
+                               for i, (n, d, _) in enumerate(top)]
+                    cites = [{"url": f"https://{d}/guide", "title": ""} for d in ("reviews.example.net", "guide.example.com", "forum.example.org")[:rng.randint(2, 3)]]
+                    cites += [{"url": r["url"], "title": ""} for r in results[:2] if r["url"]]
+                    when = min(monday - timedelta(days=7 * w) + timedelta(days=rng.randint(0, 4)), today)
+                    runs.append({"run_date": when, "category": cat["id"], "question": q, "engine": eng, "model": "", "location": "",
+                                 "citations": cites if generative else [], "results": results})
+    _DEMO_CACHE.update(key=key, runs=runs)
     return runs

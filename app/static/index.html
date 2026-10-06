@@ -24,8 +24,8 @@ nav button,.sort{font-size:14px}
 .strip div{padding:14px 16px 12px 0}
 .strip .n{font-size:28px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.15}
 .strip .l{color:var(--mute);font-size:13px}
-nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
-nav button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:8px 12px;cursor:pointer;white-space:nowrap}
+nav{display:flex;flex-wrap:wrap;gap:0 4px;border-bottom:1px solid var(--line);margin-bottom:16px}
+nav button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:8px 9px;cursor:pointer;white-space:nowrap}
 nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 :is(button,select,input,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
@@ -60,6 +60,11 @@ h2.sect{font-size:17px;margin:30px 0 0;padding-top:12px;border-top:1px solid var
 .pr{margin-left:4px}
 details.qe{margin:16px 0}
 details.qe summary{cursor:pointer;font-weight:600;margin-bottom:8px}
+h4{font-size:14px;margin:14px 0 4px}
+.trend svg{width:100%;height:auto;display:block;margin-bottom:4px}
+.trend svg text{font:12px ui-sans-serif,system-ui,sans-serif;fill:var(--ink)}
+.trend svg line{stroke:var(--line)}
+.trend table{margin:6px 0}
 .grp th,.grp td{background:var(--bg);font-weight:650}
 th.ind{padding-left:28px;font-weight:500}
 .sort{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
@@ -72,7 +77,6 @@ form.inline{display:inline-flex;gap:6px}
 <body>
 <main>
 <header>
-  <div><h1>Brand operations</h1><div class="note" id="sub">Loading...</div></div>
   <div><h1>Brand operations</h1><div class="note" id="sub">Loading...</div></div>
   <div class="tools">
     <label class="note">Category <select id="cat"><option value="">All categories</option></select></label>
@@ -116,7 +120,9 @@ function delta(cur, prev, c) {
   if (c.dk === 'rel') { if (!prev) return ''; d = d / Math.abs(prev); txt = (d >= 0 ? '+' : '') + (d*100).toFixed(0) + '%'; }
   else if (c.dk === 'pt') txt = (d >= 0 ? '+' : '') + (d*100).toFixed(1) + ' pt';
   else txt = (d >= 0 ? '+' : '') + d.toFixed(2);
-  const sign = Math.abs(d) < 1e-9 ? 0 : (d > 0 ? 1 : -1) * (c.good === 'down' ? -1 : 1);
+  const flat = Math.abs(d) < (c.dk === 'pt' ? 0.0005 : 0.005);  // would print as zero, so show it as no change
+  if (flat) txt = c.dk === 'rel' ? '0%' : c.dk === 'pt' ? '0.0 pt' : '0.00';
+  const sign = flat ? 0 : (d > 0 ? 1 : -1) * (c.good === 'down' ? -1 : 1);
   const cls = c.good === 'none' || sign === 0 ? 'fl' : sign > 0 ? 'up' : 'dn';
   return `<span class="d ${cls}">${txt}</span>`;
 }
@@ -249,13 +255,16 @@ async function renderResearch(msg) {
   if (!cat) {
     const rows = r.categories.map(c => `<tr><th scope="row">${esc(c.label)}</th><td>${c.runs_gen}</td><td>${c.runs_seo}</td><td>${pctText(c.ours_gen_slots)}</td><td>${pctText(c.ours_seo_slots)}</td><td>${c.missing} of ${c.combos}</td><td><button class="btn sm" data-r="open" data-id="${esc(c.id)}">Open</button></td></tr>`).join('');
     $('#view').innerHTML = bar + `<p class="note">Each category is researched with a few consumer questions asked of every engine, instead of checking every brand. The shares are the portion of all listed spots held by our brands. Open a category to compare AI answers with SEO results.</p><div class="scroll"><table class="tasks"><thead><tr><th>Category</th><th>AI answers</th><th>SEO lists</th><th>Our share of AI listings</th><th>Our share of SEO listings</th><th>Runs still needed</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    $('#view').insertAdjacentHTML('beforeend', await researchTrendOverview());
     return;
   }
   const d = r.detail, s = d.summary, label = id => (r.engines.find(e => e.id === id) || {label: id}).label;
   const head = `<h3>${esc(catLabel(cat))}</h3><p class="note">Latest answer to each question in this period: ${s.runs_gen} AI answers, ${s.runs_seo} SEO lists. Our brands hold ${pctText(s.ours_gen_slots)} of the listed spots in AI answers and ${pctText(s.ours_seo_slots)} in SEO lists. They appear in ${pctText(s.ours_gen)} of AI answers and ${pctText(s.ours_seo)} of SEO lists.</p>`;
+  const viewBar = `<div class="bar"><button class="btn${researchView === 'latest' ? ' primary' : ''}" data-rv="latest">Latest results</button><button class="btn${researchView === 'trend' ? ' primary' : ''}" data-rv="trend">Trends over time</button></div>`;
+  if (researchView === 'trend') { $('#view').innerHTML = bar + `<h3>${esc(catLabel(cat))}</h3>` + viewBar + await researchTrendBody(); return; }
   const qEditor = `<details class="qe"><summary>Edit the questions for this category</summary><form id="qf"><textarea name="q" rows="5" aria-label="Questions, one per line">${esc(d.questions.filter(q => q.configured).map(q => q.question).join('\n'))}</textarea><div class="bar" style="margin-top:8px"><button class="btn primary">Save questions</button><span class="note">One per line, worded the way a customer would ask. Up to 20.</span></div></form></details>`;
   if (!s.runs_gen && !s.runs_seo) {
-    $('#view').innerHTML = bar + head + `<p>No results imported for this period yet. ${d.questions.length ? 'Questions to ask, in every engine:' : 'No questions yet for this category.'}</p>${d.questions.length ? '<ul>' + d.questions.map(q => `<li>${esc(q.question)}</li>`).join('') + '</ul>' : ''}${qEditor}`;
+    $('#view').innerHTML = bar + head + viewBar + `<p>No results imported for this period yet. ${d.questions.length ? 'Questions to ask, in every engine:' : 'No questions yet for this category.'}</p>${d.questions.length ? '<ul>' + d.questions.map(q => `<li>${esc(q.question)}</li>`).join('') + '</ul>' : ''}${qEditor}`;
     return;
   }
   const cellFor = (st, n) => st.count ? `${pctText(st.rate)}<div class="note">avg #${st.avg_rank} (${st.count} of ${n})</div>` : '<span class="note">Not listed</span>';
@@ -263,7 +272,7 @@ async function renderResearch(msg) {
   const list = (title, items, key) => `<div><strong>${title}</strong>${items.length ? '<ul>' + items.map(i => `<li>${esc(i.name)}${i.ours ? ' (ours)' : ''}: ${pctText(i[key])}</li>`).join('') + '</ul>' : '<p class="note">None.</p>'}</div>`;
   const qs = d.questions.map(q => `<h3>${esc(q.question)}</h3><div class="scroll"><table class="tasks"><thead><tr><th>Engine</th><th>Run date</th><th>Our brands listed</th><th>Top 3 listed</th><th>Overlap with SEO</th></tr></thead><tbody>${r.engines.map(e => { const v = q.engines[e.id]; return v ? `<tr><th scope="row">${esc(e.label)}</th><td>${esc(v.date)}</td><td>${v.ours.length ? v.ours.map(o => esc(o.name) + ' #' + o.rank).join(', ') : '<span class="note">None listed</span>'}</td><td>${v.top.map(esc).join(', ')}</td><td>${v.overlap == null ? '' : pctText(v.overlap)}</td></tr>` : `<tr><th scope="row">${esc(e.label)}</th><td colspan="4"><span class="note">No run in this period</span></td></tr>`; }).join('')}</tbody></table></div>`).join('');
   const src = d.sources.length ? `<h3>Most cited sources</h3><p class="note">Sites the AI answers pointed to.</p><div class="scroll"><table class="tasks"><thead><tr><th>Site</th><th>Answers citing it</th></tr></thead><tbody>${d.sources.map(x => `<tr><th scope="row">${esc(x.domain)}${x.ours ? ' <span class="pr">ours</span>' : ''}</th><td>${x.count}</td></tr>`).join('')}</tbody></table></div>` : '';
-  $('#view').innerHTML = bar + head + `<h3>Who gets recommended</h3><div class="scroll"><table class="tasks"><thead><tr><th>Company</th><th>In AI answers</th><th>In SEO results</th><th>AI minus SEO</th></tr></thead><tbody>${rows}</tbody></table></div><div class="cols">${list('In AI answers but not in SEO results', d.ai_not_seo, 'ai_rate')}${list('In SEO results but missing from AI answers', d.seo_not_ai, 'seo_rate')}</div>` + src + '<h2 class="sect">By question</h2>' + qs + qEditor;
+  $('#view').innerHTML = bar + head + viewBar + `<h3>Who gets recommended</h3><div class="scroll"><table class="tasks"><thead><tr><th>Company</th><th>In AI answers</th><th>In SEO results</th><th>AI minus SEO</th></tr></thead><tbody>${rows}</tbody></table></div><div class="cols">${list('In AI answers but not in SEO results', d.ai_not_seo, 'ai_rate')}${list('In SEO results but missing from AI answers', d.seo_not_ai, 'seo_rate')}</div>` + src + '<h2 class="sect">By question</h2>' + qs + qEditor;
 }
 async function saveCategory(path, body) {
   const res = await postJson(path, body);
@@ -274,6 +283,20 @@ async function saveCategory(path, body) {
 async function saveQuestions(text) {
   const res = await postJson('/api/research/questions', {category: cat, questions: text.split('\n')});
   await renderResearch(res.error || 'Questions saved.');
+}
+let researchView = 'latest', researchRange = '90';
+const rangeSelect = () => `<label class="note">Range <select id="trange">${[30, 90, 180, 365].map(n => `<option value="${n}"${String(n) === researchRange ? ' selected' : ''}>Last ${n} days</option>`).join('')}</select></label>`;
+const changeText = v => v == null ? 'n/a' : Math.abs(v) < 0.005 ? '<span class="fl">0 pts</span>' : `<span class="${v > 0 ? 'up' : 'dn'}">${v > 0 ? '+' : ''}${Math.round(v * 100)} pts</span>`;
+async function researchTrendBody() {
+  const t = await (await fetch('/api/research/trend?days=' + researchRange + '&category=' + encodeURIComponent(cat))).json();
+  if (t.error) return `<div class="err">${esc(t.error)}</div>`;
+  return `<div class="bar">${rangeSelect()}</div>` + t.html;
+}
+async function researchTrendOverview() {
+  const t = await (await fetch('/api/research/trend?days=' + researchRange)).json();
+  if (t.error || !t.overview.length) return '';
+  const rows = t.overview.map(c => `<tr><th scope="row">${esc(c.label)}</th><td>${c.weeks}</td><td>${c.enough ? pctText(c.ours_gen_now) : 'n/a'}</td><td>${c.enough ? changeText(c.ours_gen_change) : 'n/a'}</td><td>${c.enough ? pctText(c.ours_seo_now) : 'n/a'}</td><td>${c.enough ? changeText(c.ours_seo_change) : 'n/a'}</td><td><button class="btn sm" data-r="trend-open" data-id="${esc(c.id)}">Open</button></td></tr>`).join('');
+  return `<h3>AI visibility trend by category</h3><div class="bar">${rangeSelect()}<span class="note">Our share of listed spots in the second half of the range, and the change from the first half.</span></div><div class="scroll"><table class="tasks"><thead><tr><th>Category</th><th>Weeks with results</th><th>Our share in AI answers</th><th>Change</th><th>Our share in SEO results</th><th>Change</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 const $ = s => document.querySelector(s);
 async function load() {
@@ -379,6 +402,13 @@ $('#view').addEventListener('click', async e => {
   if (b.dataset.c === 'rm') armed(b, 'Click again to remove', () => saveCategory('/api/categories/remove', {id}));
   else await saveCategory('/api/categories/move', {id, direction: b.dataset.c});
 });
+$('#view').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-rv], button[data-r="trend-open"]'); if (!b) return;
+  if (b.dataset.rv) researchView = b.dataset.rv;
+  else { researchView = 'trend'; $('#cat').value = b.dataset.id; cat = b.dataset.id; renderStrip(); }
+  await renderView();
+});
+$('#view').addEventListener('change', async e => { if (e.target.id === 'trange') { researchRange = e.target.value; await renderResearch(); } });
 load();
 </script>
 </body>

@@ -41,3 +41,14 @@ A file is imported all or nothing: if any row has a problem (unknown engine, bad
 
 ## How the comparison works
 For each question and engine, the app uses the latest run within the selected period. Companies are matched to your brands by site first, then by name (whole names only, so "Brand 7" never matches "Brand 70"). The category view shows how often each company is listed in AI answers versus SEO results, who ranks higher where, who appears in one but not the other, how far each AI answer overlaps with the Google list, which sites the AI answers cite, and which question and engine combinations still have no run. In demo mode, imports are kept in memory only.
+
+
+## Trends over time
+Every run is kept, so the Market research tab can show how answers change. Choose a category, then **Trends over time**, and pick a range (30 to 365 days). Runs are grouped by week, and each week uses the latest answer to each question in each engine. You get:
+
+- our share of the listed spots in AI answers and in SEO results, week by week
+- how often each of our brands is listed in AI answers
+- the companies AI answers list most
+- which companies are rising and falling, comparing the first half of the range with the second half
+
+Weeks with no runs are shown as gaps. Trends need results from at least two different weeks, and a week with only one or two runs is thin evidence, so keep the same questions and engines going each week for clean lines. With no category selected, the tab shows a one-line trend summary for every category. The exported report includes the same trend section for each category (last 90 days).

@@ -88,7 +88,7 @@ def test_dossier_is_separated_by_category():
     n = len(s["categories"])
     assert html.count("<svg") == 4 * n and html.count("Proposed actions") == n and "<script" not in html
     for c in s["categories"]:
-        assert f"<h2>{c['label']}</h2>" in html
+        assert f'>{c["label"]} <span class="mut">' in html
     assert "By category" in html and "Demo data" in html
 
 

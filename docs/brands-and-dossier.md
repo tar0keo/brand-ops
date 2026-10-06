@@ -19,3 +19,7 @@ The category selector in the header filters the summary at the top and every tab
 "Open dossier" in the header builds a standalone HTML report for the chosen period. It starts with portfolio totals, what stands out, and a table by category, then has one section per category (totals, brand scorecard, four charts, proposed actions), then data source status. If a category is selected in the header, the dossier covers only that category. "Download" saves it as a file; use your browser's Print, Save as PDF for a PDF. It contains no scripts and no network calls.
 
 The "what stands out" notes come from simple rules, not AI.
+
+
+## Report layout
+In the exported report, each category is a dropdown: click its heading to open it, or use "Expand or collapse all categories" at the top. Everything prints open when you print or save as PDF. Each category contains its scorecard, charts, the research trend (AI answers versus SEO over the last 90 days), and its proposed actions. The report still needs no scripts: the dropdowns are plain CSS.
